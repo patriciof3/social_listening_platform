@@ -1,0 +1,6 @@
+nltk
+sentence_transformers
+pandas
+openpyxl
+chromadb
+pyarrow
