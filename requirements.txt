@@ -4,3 +4,5 @@ pandas
 openpyxl
 chromadb
 pyarrow
+transformers
+huggingface-hub
