@@ -6,3 +6,4 @@ chromadb
 pyarrow
 transformers
 huggingface-hub
+bs4
