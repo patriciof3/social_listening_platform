@@ -2,7 +2,7 @@ nltk
 sentence_transformers
 pandas
 openpyxl
-chromadb
+chromadb==0.5.3 
 pyarrow
 transformers
 huggingface-hub
