@@ -7,3 +7,4 @@ pyarrow
 transformers
 huggingface-hub
 bs4
+selenium
