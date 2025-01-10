@@ -64,7 +64,8 @@ word_to_count = st.text_input("Palabra para graficar:", "")
         # Plotting Word Counts
 if word_to_count:
     st.write(f"Recuento de la palabra '{word_to_count}':")
-    fig = plot_word_count_by_period(word_to_count, period)  # Call the function
+    fig, word_count, word_present = plot_word_count_by_period(word_to_count, period)  # Call the function
     st.plotly_chart(fig, use_container_width=True)
+    st.write(f"La palabra '{word_to_count}' aparece {word_count} veces, en un total de {word_present} artículos.")
 else:
     st.write("No hay palabra seleccionada.")

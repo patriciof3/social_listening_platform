@@ -101,7 +101,7 @@ def plot_word_count_by_period(word_to_count, period):
                  xaxis_tickformat="%Y",
              )
 
-             return fig
+             return fig, sum(df['word_count']), sum(df['word_present'])
     
     elif period == 'Diario':
                      # Create a bar chart using Plotly
@@ -123,4 +123,4 @@ def plot_word_count_by_period(word_to_count, period):
                  xaxis_tickformat="%b %Y",
              )
           
-             return fig
+             return fig, sum(df['word_count']), sum(df['word_present'])
