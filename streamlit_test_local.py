@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import chromadb
 from chromadb.utils import embedding_functions
-from word_count_plot import plot_word_count_by_period
+from features_streamlit.word_count_plot import plot_word_count_by_period
 
 sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="paraphrase-multilingual-mpnet-base-v2")
 
