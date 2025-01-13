@@ -1,10 +1,16 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import re
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+import time
+from selenium.webdriver.chrome.options import Options
+
 
 ###############################################################################################################################################
 # Dictionary with data sources links
+
+keywords = ['droga', 'narco', 'narcotráfico', 'cocaína', 'marihuana', 'drogas']
 
 sources = {
     "litoral": {
@@ -21,6 +27,10 @@ sources = {
         "general": "https://www.pagina12.com.ar/suplementos/rosario12/{date}",
     },
 }
+
+headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
 
 ###############################################################################################################################################
 
@@ -59,10 +69,11 @@ def scrape_links_and_titles_litoral(sources_dict):
                  links = div.find_all('a', href=True)
 
                  for link in links:
-                     href = "https://www.ellitoral.com/sucesos" + link['href']  # Prepend the URL prefix to the href attribute
+                     href = "https://www.ellitoral.com" + link['href']  # Prepend the URL prefix to the href attribute
      
                      # Find the <h1> inside the <a> tag (if it exists)
                      h1 = link.find('h1')
+
                      title = h1.get_text(strip=True) if h1 else None  # Extract text or use None if not found
      
                      # Append the link, title, and additional info to the data list
@@ -74,33 +85,101 @@ def scrape_links_and_titles_litoral(sources_dict):
      
          # Create a DataFrame from the data list
     df = pd.DataFrame(data)
-
+    print("Links scraped: ", len(df))
     return df
+
+def scrape_links_and_titles_impresa_litoral(url: str):
+
+    driver = webdriver.Chrome()
+    
+
+    # Load the webpage using Selenium
+    driver.get(url)
+
+    # Wait for the page to load (you can adjust the time as needed)
+    time.sleep(5)
+
+    # Dictionary to store the links and titles
+    links_and_titles = {}
+
+    # Find all the <a> tags with the specific class
+    a_tags = driver.find_elements(By.CSS_SELECTOR, 'a.styles_note__oZOP3')
+
+    # Loop through the tags to extract titles and links
+    for a_tag in a_tags:
+        try:
+            title = a_tag.find_element(By.CSS_SELECTOR, 'h3.styles_title__ir_9_').text.strip()
+            link = a_tag.get_attribute('href')
+            # Store in dictionary
+            if any(keyword.lower() in title.lower() for keyword in keywords):
+                links_and_titles[title] = link
+            
+        except Exception as e:
+            print(f"Error extracting title and link: {e}")
+
+    # Close the browser session
+    driver.quit()
+
+    # Convert dictionary to DataFrame
+    if links_and_titles:
+        df = pd.DataFrame(list(links_and_titles.items()), columns=['title', 'link'])
+    else:
+        df = pd.DataFrame(columns=['title', 'link'])
+        print("No titles with the specified keywords were found.")
+    
+    return df
+
 
 ###############################################################################################################################################
 
 # EL LITORAL: CONTENT AND DATE
-def scrape_content_date_ellitoral(url):
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
+def scrape_content_date_ellitoral(df):
+    # List to store the scraped data
+    scraped_data = []
+    
+    for link in df['link']:
+        try:
+            # Request the webpage
+            response = requests.get(link, headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            
+            # Parse the webpage content
+            soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
+            
+            # Extract paragraphs
+            paragraphs = soup.findAll('p')
+            content_list = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
+            
+            # Extract datetime attribute
+            datetime_element = soup.find(attrs={"datetime": True})
+            date = datetime_element['datetime'] if datetime_element else None
+            
+            # Remove strings related to other parts of the webpage
+            target_string = "Los comentarios realizados son de exclusiva responsabilidad de sus autores"
+            content_list = [s for s in content_list if target_string not in s]
+            
+            # Store the result in the list
+            scraped_data.append({"content": content_list if content_list else ["No content found"], "date": date})
         
-        # Extract paragraphs
-        paragraphs = soup.findAll('p')
-        content_list = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
-        
-        # Extract datetime attribute
-        datetime_element = soup.find(attrs={"datetime": True})
-        date = datetime_element['datetime'] if datetime_element else None
+        except requests.exceptions.RequestException as e:
+            scraped_data.append({"content": [f"Request error: {e}"], "date": None})
+        except Exception as e:
+            scraped_data.append({"content": [f"Error: {e}"], "date": None})
+    
+    # Create a DataFrame from the scraped data
+    result_df = pd.DataFrame(scraped_data)
+    
+    # Convert 'date' to datetime and keep only the date part
+    result_df['date'] = pd.to_datetime(result_df['date'], errors='coerce').dt.date
+    
+    # Ensure both DataFrames align and assign the new columns
+    df = df.reset_index(drop=True)  # Reset index to ensure alignment
+    df['content'] = result_df['content']
+    df['date'] = result_df['date']
 
-        # Return a tuple of content and date
-        return {"content": content_list if content_list else ["No content found"], "date": date}
-    except requests.exceptions.RequestException as e:
-        return {"content": [f"Request error: {e}"], "date": None}
-    except Exception as e:
-        return {"content": [f"Error: {e}"], "date": None}
+    return df
+
+
 
 ###############################################################################################################################################
 ###############################################################################################################################################
@@ -111,10 +190,6 @@ def scrape_links_and_titles_aire(sources_dict):
 
     # List to store all scraped data
     data = []
-
-    headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
-        }
 
     # Extract URLs and tags
     urls = list(sources_dict["aire"].values())
@@ -183,26 +258,46 @@ def scrape_content_date_aire(url):
         # Return a dictionary with both content and date
         return {"content": content_list if content_list else ["No content found"], "date": extracted_date}
     
+###############################################################################################################################################
+
+ # MERGE LITORAL AND AIRE DATAFRAMES
+
+def merge_dataframes(df_litoral, df_aire):
+    merged_df = pd.concat([df_litoral, df_aire], ignore_index=True)
+    return merged_df
+
+# REMOVE SHORT ITEMS IN CONTENT AND MERGE INTO SINGLE STRING
+
+def remove_short_items(content_list):
+    return ' '.join([item for item in content_list if len(item) > 10])
+
+
+
 
 def main():
-    #df_litoral = scrape_links_and_titles_litoral(sources)
+    df_links_litoral = scrape_links_and_titles_litoral(sources)
+    df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa/20240902")
+    df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
+    df_content_date_litoral = scrape_content_date_ellitoral(df_litoral_merged)
+    print(df_content_date_litoral.tail())
+    print(len(df_content_date_litoral))
 
-    #df_extracted = df_litoral['link'].apply(scrape_content_date_ellitoral)
     
-    # Create separate columns for 'content' and 'date'
-    #df_litoral['content'] = df_extracted.apply(lambda x: x['content'])
-    #df_litoral['date'] = df_extracted.apply(lambda x: x['date'])
-    df_aire = scrape_links_and_titles_aire(sources)
+    #df_content_date_litoral.to_excel("data/df_litoral_test.xlsx", index=False)
+    #df_aire = scrape_links_and_titles_aire(sources)
 
     # Apply the function to the 'Link' column
-    df_extracted = df_aire['link'].apply(scrape_content_date_aire)
+    # df_extracted = df_aire['link'].apply(scrape_content_date_aire)
     
-    # Create separate columns for 'content' and 'date'
-    df_aire['content'] = df_extracted.apply(lambda x: x['content'])
-    df_aire['date'] = df_extracted.apply(lambda x: x['date'])
+    # # Create separate columns for 'content' and 'date'
+    # df_aire['content'] = df_extracted.apply(lambda x: x['content'])
+    # df_aire['date'] = df_extracted.apply(lambda x: x['date'])
 
-    print(df_aire.head())
-    print(len(df_aire))
-    df_aire.to_csv("data/df_aire_historic_content.csv", index=False)
+    # df_aire['content'] = df_aire['content'].apply(
+    #     lambda lst: [s.replace('\xa0', '') for s in lst]
+    #     )
+    #print(df_aire.content[34])
+
+
 if __name__ == "__main__":
     main()
