@@ -85,12 +85,13 @@ def scrape_links_and_titles_litoral(sources_dict):
      
          # Create a DataFrame from the data list
     df = pd.DataFrame(data)
-    print("Links scraped: ", len(df))
+
     return df
 
 def scrape_links_and_titles_impresa_litoral(url: str):
-
-    driver = webdriver.Chrome()
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new") # for Chrome >= 109
+    driver = webdriver.Chrome(options=chrome_options)
     
 
     # Load the webpage using Selenium
@@ -125,7 +126,8 @@ def scrape_links_and_titles_impresa_litoral(url: str):
         df = pd.DataFrame(list(links_and_titles.items()), columns=['title', 'link'])
     else:
         df = pd.DataFrame(columns=['title', 'link'])
-        print("No titles with the specified keywords were found.")
+        df["media"] = "El Litoral"
+        print("No titles with the specified keywords were found in Edición Impresa.")
     
     return df
 
@@ -181,7 +183,6 @@ def scrape_content_date_ellitoral(df):
 
 
 
-###############################################################################################################################################
 ###############################################################################################################################################
 
 # AIRE: LINKS AND TITLES
@@ -262,41 +263,84 @@ def scrape_content_date_aire(url):
 
  # MERGE LITORAL AND AIRE DATAFRAMES
 
-def merge_dataframes(df_litoral, df_aire):
-    merged_df = pd.concat([df_litoral, df_aire], ignore_index=True)
+def merge_dataframes(df1, df2):
+    """
+    Merge two DataFrames, df1 and df2, into one and return the merged DataFrame.
+    
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        The DataFrame containing the scraped data from El Litoral.
+    df2 : pd.DataFrame
+        The DataFrame containing the scraped data from Aire de Santa Fe.
+    
+    Returns
+    -------
+    pd.DataFrame
+        The merged DataFrame containing the data from both sources.
+    """
+    
+    merged_df = pd.concat([df1, df2], ignore_index=True)
     return merged_df
 
 # REMOVE SHORT ITEMS IN CONTENT AND MERGE INTO SINGLE STRING
 
-def remove_short_items(content_list):
-    return ' '.join([item for item in content_list if len(item) > 10])
+
+def remove_short_items_from_column(df, column_name):
+    """
+    Remove items from a specified column of a DataFrame that have less than 30 characters.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing the column to filter.
+    column_name : str
+        Name of the column to filter.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with the specified column updated, where short items have been removed, 
+        and the remaining items joined with spaces.
+    """
+    # Create a copy of the DataFrame to avoid modifying the original
+    df = df.copy()
+
+    # Apply filtering to the specified column
+    df[column_name] = df[column_name].apply(
+        lambda content_list: ' '.join([item for item in content_list if len(item) > 30])
+        if isinstance(content_list, list) else content_list
+    )
+
+    return df
 
 
 
 
 def main():
+    
     df_links_litoral = scrape_links_and_titles_litoral(sources)
+    
     df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa/20240902")
+    
     df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
+    
     df_content_date_litoral = scrape_content_date_ellitoral(df_litoral_merged)
-    print(df_content_date_litoral.tail())
-    print(len(df_content_date_litoral))
 
     
-    #df_content_date_litoral.to_excel("data/df_litoral_test.xlsx", index=False)
-    #df_aire = scrape_links_and_titles_aire(sources)
+    df_aire = scrape_links_and_titles_aire(sources)
 
     # Apply the function to the 'Link' column
-    # df_extracted = df_aire['link'].apply(scrape_content_date_aire)
+    df_extracted = df_aire['link'].apply(scrape_content_date_aire)
     
-    # # Create separate columns for 'content' and 'date'
-    # df_aire['content'] = df_extracted.apply(lambda x: x['content'])
-    # df_aire['date'] = df_extracted.apply(lambda x: x['date'])
+    # Create separate columns for 'content' and 'date'
+    df_aire['content'] = df_extracted.apply(lambda x: x['content'])
+    df_aire['date'] = df_extracted.apply(lambda x: x['date'])
 
-    # df_aire['content'] = df_aire['content'].apply(
-    #     lambda lst: [s.replace('\xa0', '') for s in lst]
-    #     )
-    #print(df_aire.content[34])
+    df_aire['content'] = df_aire['content'].apply(
+        lambda lst: [s.replace('\xa0', '') for s in lst]
+        )
+    print(df_aire.content[34])
 
 
 if __name__ == "__main__":
