@@ -10,7 +10,7 @@ STOP_WORDS = spacy.lang.es.stop_words.STOP_WORDS
 
 def reading_data():
     # Convert 'date' to datetime
-    df = pd.read_json("scraped_content.json", lines=True)
+    df = pd.read_json("../data/scraped_content.json", lines=True)
 
     df['date'] = pd.to_datetime(df['date'])
 
