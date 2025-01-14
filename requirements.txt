@@ -9,3 +9,4 @@ huggingface-hub
 bs4
 selenium
 streamlit
+pymongo
