@@ -1,2 +1,3 @@
-# drugtrafficking_rag
- Research into R.A.G with HuggingFace api 
+# Social Listening App
+ Streamlit app displaying results of scraped online articles regarding drugtrafficking
+ 
