@@ -26,5 +26,6 @@ jobs:
       - name: Run Scraper
         env:
           DISPLAY: ":99"  # Required for Selenium
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           python daily_scraper.py
