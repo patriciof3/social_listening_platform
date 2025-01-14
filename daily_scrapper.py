@@ -5,7 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
 from selenium.webdriver.chrome.options import Options
-
+from pymongo import MongoClient
+import os
 
 ###############################################################################################################################################
 # Dictionary with data sources links
@@ -32,14 +33,13 @@ headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
     }
 
+# MONGO VARIABLES
+mongodb_uri = mongodb_uri = os.getenv("MONGODB_URI")
+db_name = "social_listening"
+collection_name = "drugtrafficking"
+unique_field = "link"
+
 ###############################################################################################################################################
-
-#STEPS: 
-# 1. Scrape data from each source
-# 2. Clean data
-# 3. Check duplicates
-# 4. Save data to mongodb
-
 
 # Scrapper El Litoral: LINKS AND TITLES
 
@@ -171,13 +171,13 @@ def scrape_content_date_ellitoral(df):
     # Create a DataFrame from the scraped data
     result_df = pd.DataFrame(scraped_data)
     
-    # Convert 'date' to datetime and keep only the date part
-    result_df['date'] = pd.to_datetime(result_df['date'], errors='coerce').dt.date
-    
     # Ensure both DataFrames align and assign the new columns
     df = df.reset_index(drop=True)  # Reset index to ensure alignment
     df['content'] = result_df['content']
     df['date'] = result_df['date']
+    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.tz_localize(None)
+
+    print("Articles scraped from El Litoral:", len(df))
 
     return df
 
@@ -207,7 +207,6 @@ def scrape_links_and_titles_aire(sources_dict):
 
             divs = soup.find_all('div', class_='article-title')
             if divs:
-                print(f"Found {len(divs)} divs with the specified class on {url}.")
                 for div in divs:
                     a_tag = div.find('a', class_='a-article-link')
                     if a_tag:
@@ -228,36 +227,72 @@ def scrape_links_and_titles_aire(sources_dict):
 
 # AIRE: CONTENT AND DATE
 
-def scrape_content_date_aire(url):
+def scrape_content_date_aire(df):
 
-        headers = {
+    scraped_data = []
+    headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         }
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
+    for link in df['link']:
         
-        # Extract paragraphs
-        paragraphs = soup.findAll('p')
-        content_list = [p.get_text() for p in paragraphs if p.get_text()]
-        content_list = content_list[:-5]
-        # Extract the <div> with the class 'article-date'
-        date_div = soup.find('div', class_='article-date')
+        try:
+            
+            response = requests.get(link, headers=headers, timeout=10)
+            response.raise_for_status()
+    
+            soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
+            
+            # Extract paragraphs
+            paragraphs = soup.findAll('p')
+            content_list = [p.get_text() for p in paragraphs if p.get_text()]
+            content_list = content_list[:-5]
 
-        # Extract datetime attribute
-        if date_div:
-            # Find the <time> tag within that div
-            datetime_element = date_div.find('time', attrs={"datetime": True})
-            if datetime_element:
-                extracted_date = datetime_element['datetime']  # Extract the value of the datetime attribute
+            #remove p elements that direct to other articles
+            target_strings = ["LEER MÁS", " LEER MÁS"]
+            content_list = [s for s in content_list if not any(s.startswith(t) or t in s for t in target_strings)]
+
+            # Extract the <div> with the class 'article-date'
+            date_div = soup.find('div', class_='article-date')
+    
+            # Extract datetime attribute
+            if date_div:
+                # Find the <time> tag within that div
+                datetime_element = date_div.find('time', attrs={"datetime": True})
+                if datetime_element:
+                    date = datetime_element['datetime']  # Extract the value of the datetime attribute
+                else:
+                    date = "Date not found in time tag"
             else:
-                extracted_date = "Date not found in time tag"
-        else:
-            extracted_date = "No article-date div found"
+                date = "No article-date div found"
+                # Store the result in the list
 
-        # Return a dictionary with both content and date
-        return {"content": content_list if content_list else ["No content found"], "date": extracted_date}
+            scraped_data.append({"content": content_list if content_list else ["No content found"], "date": date})
+        
+        except requests.exceptions.RequestException as e:
+            scraped_data.append({"content": [f"Request error: {e}"], "date": None})
+        except Exception as e:
+            scraped_data.append({"content": [f"Error: {e}"], "date": None})
+    
+    # Create a DataFrame from the scraped data
+    result_df = pd.DataFrame(scraped_data)
+       
+    # Ensure both DataFrames align and assign the new columns
+    df = df.reset_index(drop=True)  # Reset index to ensure alignment
+    df['content'] = result_df['content']
+    df['date'] = result_df['date']
+
+    df['content'] = df['content'].apply(
+        lambda lst: [s.replace('\xa0', '') for s in lst]
+        )
+    
+    df['content'] = df['content'].apply(
+    lambda lst: [s.replace('LEER MÁS ►', '') for s in lst]
+    )
+
+    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.tz_localize(None)
+    
+    print("Articles scraped from Aire:", len(df))
+    return df
     
 ###############################################################################################################################################
 
@@ -281,6 +316,9 @@ def merge_dataframes(df1, df2):
     """
     
     merged_df = pd.concat([df1, df2], ignore_index=True)
+
+    merged_df = merged_df.drop_duplicates(subset=['link'], keep='first')
+
     return merged_df
 
 # REMOVE SHORT ITEMS IN CONTENT AND MERGE INTO SINGLE STRING
@@ -303,8 +341,6 @@ def remove_short_items_from_column(df, column_name):
         DataFrame with the specified column updated, where short items have been removed, 
         and the remaining items joined with spaces.
     """
-    # Create a copy of the DataFrame to avoid modifying the original
-    df = df.copy()
 
     # Apply filtering to the specified column
     df[column_name] = df[column_name].apply(
@@ -315,32 +351,70 @@ def remove_short_items_from_column(df, column_name):
     return df
 
 
+###############################################################################################################################################
+# UPLOAD DATA TO MONGODB
 
+def upload_dataframe_to_mongodb(df, mongodb_uri, db_name, collection_name, unique_field):
+    """
+    Uploads data from a DataFrame to a MongoDB collection, ensuring no duplicates 
+    based on the specified unique field.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing data to upload.
+    - mongodb_uri (str): The MongoDB connection URI.
+    - db_name (str): The name of the database.
+    - collection_name (str): The name of the collection.
+    - unique_field (str): The field to check for duplicates (e.g., 'link').
+
+    Returns:
+    - dict: A summary of the operation with counts of inserted and skipped documents.
+    """
+    # Connect to MongoDB
+    client = MongoClient(mongodb_uri)
+    db = client[db_name]
+    collection = db[collection_name]
+
+    # Fetch existing unique field values
+    existing_values = set(doc[unique_field] for doc in collection.find({}, {unique_field: 1, "_id": 0}))
+
+    # Filter the DataFrame to exclude duplicates
+    df_to_insert = df[~df[unique_field].isin(existing_values)]
+
+    # Insert new documents
+    if not df_to_insert.empty:
+        collection.insert_many(df_to_insert.to_dict(orient="records"))
+
+    # Return a summary of the operation
+    return {
+        "inserted_count": len(df_to_insert),
+        "skipped_count": len(df) - len(df_to_insert)
+    }
+
+###############################################################################################################################################
+# MAIN FUNCTION
 
 def main():
     
     df_links_litoral = scrape_links_and_titles_litoral(sources)
     
-    df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa/20240902")
+    df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa")
     
     df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
     
     df_content_date_litoral = scrape_content_date_ellitoral(df_litoral_merged)
 
-    
-    df_aire = scrape_links_and_titles_aire(sources)
+    df_links_aire = scrape_links_and_titles_aire(sources)
 
     # Apply the function to the 'Link' column
-    df_extracted = df_aire['link'].apply(scrape_content_date_aire)
+    df_content_date_aire = scrape_content_date_aire(df_links_aire)
     
-    # Create separate columns for 'content' and 'date'
-    df_aire['content'] = df_extracted.apply(lambda x: x['content'])
-    df_aire['date'] = df_extracted.apply(lambda x: x['date'])
-
-    df_aire['content'] = df_aire['content'].apply(
-        lambda lst: [s.replace('\xa0', '') for s in lst]
-        )
-    print(df_aire.content[34])
+    df_merged = merge_dataframes(df_content_date_litoral, df_content_date_aire)
+    
+    df_merged = remove_short_items_from_column(df_merged, 'content')
+    
+    result = upload_dataframe_to_mongodb(df_merged, mongodb_uri, db_name, collection_name, unique_field)
+    
+    print(result)
 
 
 if __name__ == "__main__":
