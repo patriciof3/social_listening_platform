@@ -41,7 +41,7 @@ unique_field = "link"
 
 ###############################################################################################################################################
 
-# Scrapper El Litoral: LINKS AND TITLES
+# Scraper El Litoral: LINKS AND TITLES
 
 def scrape_links_and_titles_litoral(sources_dict):
 
@@ -89,8 +89,12 @@ def scrape_links_and_titles_litoral(sources_dict):
     return df
 
 def scrape_links_and_titles_impresa_litoral(url: str):
+    
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new") # for Chrome >= 109
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+
     driver = webdriver.Chrome(options=chrome_options)
     
 
