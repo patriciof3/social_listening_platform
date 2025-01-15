@@ -412,7 +412,7 @@ def main():
     
     # df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
     
-    df_content_date_litoral = scrape_content_date_ellitoral(df_litoral_merged)
+    df_content_date_litoral = scrape_content_date_ellitoral(df_links_litoral)
 
     df_links_aire = scrape_links_and_titles_aire(sources)
 
