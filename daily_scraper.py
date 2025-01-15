@@ -7,6 +7,9 @@ import time
 from selenium.webdriver.chrome.options import Options
 from pymongo import MongoClient
 import os
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.utils import ChromeType
 from selenium.webdriver.chrome.service import Service
 
 ###############################################################################################################################################
@@ -91,29 +94,23 @@ def scrape_links_and_titles_litoral(sources_dict):
 
 def scrape_links_and_titles_impresa_litoral(url: str):
     
-    print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
-    print("Page title after loading:", driver.title)
-
-
+    chrome_service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+    
     chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+    options = [
+        "--headless",
+        "--disable-gpu",
+        "--window-size=1920,1200",
+        "--ignore-certificate-errors",
+        "--disable-extensions",
+        "--no-sandbox",
+        "--disable-dev-shm-usage"
+    ]
+    for option in options:
+        chrome_options.add_argument(option)
+    
+    driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
 
-# Set the path to ChromeDriver explicitly
-    chrome_driver_path = os.environ.get("CHROMEWEBDRIVER", "/usr/local/share/chromedriver-linux64")
-    service = Service(chrome_driver_path)
-
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    #print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
-    #print("Page title after loading:", driver.title)
-
-    # if driver:
-    #     print("Chrome driver is available.")
-    # else:
-    #     print("Chrome driver is not available.")
-    # Load the webpage using Selenium
     driver.get(url)
     
     # Wait for the page to load (you can adjust the time as needed)
