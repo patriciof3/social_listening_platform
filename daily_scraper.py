@@ -106,13 +106,13 @@ def scrape_links_and_titles_impresa_litoral(url: str):
 
     driver = webdriver.Chrome(service=service, options=chrome_options)
 
-    print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
-    print("Page title after loading:", driver.title)
+    #print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
+    #print("Page title after loading:", driver.title)
 
-    if driver:
-        print("Chrome driver is available.")
-    else:
-        print("Chrome driver is not available.")
+    # if driver:
+    #     print("Chrome driver is available.")
+    # else:
+    #     print("Chrome driver is not available.")
     # Load the webpage using Selenium
     driver.get(url)
     
