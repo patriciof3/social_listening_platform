@@ -1,16 +1,10 @@
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.common.by import By
 import time
-from selenium.webdriver.chrome.options import Options
 from pymongo import MongoClient
 import os
-from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.utils import ChromeType
-from selenium.webdriver.chrome.service import Service
+
 
 ###############################################################################################################################################
 # Dictionary with data sources links
@@ -414,9 +408,9 @@ def main():
     
     df_links_litoral = scrape_links_and_titles_litoral(sources)
     
-    df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa")
+    # df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa")
     
-    df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
+    # df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
     
     df_content_date_litoral = scrape_content_date_ellitoral(df_litoral_merged)
 
