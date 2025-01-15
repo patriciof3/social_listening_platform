@@ -1,6 +1,4 @@
 pandas
-selenium
 bs4
 pymongo
 requests
-webdriver-manager 
