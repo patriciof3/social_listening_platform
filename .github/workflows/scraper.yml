@@ -24,7 +24,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_github_actions.txt
 
-
+      - name: Install Chrome dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
+          CHROMEDRIVER_VERSION=${CHROME_VERSION%.*}
+          wget -N https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip
+          unzip chromedriver_linux64.zip -d /usr/local/share/
+          sudo ln -sf /usr/local/share/chromedriver /usr/local/bin/chromedriver
+          sudo chmod +x /usr/local/bin/chromedriver      
+          
       - name: Run Scraper
         env:
           DISPLAY: ":99"  # Required for Selenium

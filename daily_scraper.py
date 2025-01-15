@@ -7,6 +7,7 @@ import time
 from selenium.webdriver.chrome.options import Options
 from pymongo import MongoClient
 import os
+from selenium.webdriver.chrome.service import Service
 
 ###############################################################################################################################################
 # Dictionary with data sources links
@@ -90,22 +91,37 @@ def scrape_links_and_titles_litoral(sources_dict):
 
 def scrape_links_and_titles_impresa_litoral(url: str):
     
+    print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
+    print("Page title after loading:", driver.title)
+
+
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
 
-    driver = webdriver.Chrome(options=chrome_options)
-    
+# Set the path to ChromeDriver explicitly
+    chrome_driver_path = os.environ.get("CHROMEWEBDRIVER", "/usr/local/share/chromedriver-linux64")
+    service = Service(chrome_driver_path)
 
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+
+    print("Current ChromeDriver version:", driver.capabilities['browserVersion'])
+    print("Page title after loading:", driver.title)
+
+    if driver:
+        print("Chrome driver is available.")
+    else:
+        print("Chrome driver is not available.")
     # Load the webpage using Selenium
     driver.get(url)
-
+    
     # Wait for the page to load (you can adjust the time as needed)
-    time.sleep(5)
+    time.sleep(20)
 
     # Dictionary to store the links and titles
     links_and_titles = {}
+    
 
     # Find all the <a> tags with the specific class
     a_tags = driver.find_elements(By.CSS_SELECTOR, 'a.styles_note__oZOP3')
