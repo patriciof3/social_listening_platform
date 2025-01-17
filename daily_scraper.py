@@ -75,7 +75,7 @@ def scrape_links_and_titles_litoral(sources_dict):
                      title = h1.get_text(strip=True) if h1 else None  # Extract text or use None if not found
      
                      # Append the link, title, and additional info to the data list
-                     data.append({'link': href, 'title': title, 'tag': tag, 'media': 'El Litoral'})
+                     data.append({'link': href, 'title': title, 'tag': tag, 'media': 'ellitoral'})
      
              else:
                  print(f"No div with the specified class found on {url}.")
