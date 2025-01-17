@@ -3,4 +3,4 @@
 .python-version
 __pycache__/word_count_plot.cpython-310.pyc
 /tests
-
+*.pyc 
