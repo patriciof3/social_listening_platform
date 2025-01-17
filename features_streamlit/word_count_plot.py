@@ -7,10 +7,11 @@ nlp = spacy.load("es_core_news_sm")
 # Define Spanish stopwords
 STOP_WORDS = spacy.lang.es.stop_words.STOP_WORDS
 
+data_path = r"C:\Users\patricio\Documents\Python\drugtrafficking_rag\data/scraped_content.json"
 
-def reading_data():
+def reading_data(path):
     # Convert 'date' to datetime
-    df = pd.read_json(r"C:\Users\patricio\Documents\Python\drugtrafficking_rag\data/scraped_content.json", lines=True)
+    df = pd.read_json(path, lines=True)
 
     df['date'] = pd.to_datetime(df['date'])
 
@@ -47,7 +48,7 @@ def plot_word_count_by_period(word_to_count, period):
         fig: Plotly figure object.
     """
 
-    df = reading_data()
+    df = reading_data(data_path)
 
     df['cleaned_content'] = df['content'].apply(remove_stopwords)
 
