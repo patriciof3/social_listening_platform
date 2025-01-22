@@ -86,7 +86,7 @@ def scrape_links_and_titles_litoral(sources_dict):
 
     return df
 
-def scrape_links_and_titles_impresa_litoral(url: str):
+# def scrape_links_and_titles_impresa_litoral(url: str):
     
     chrome_service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
     
