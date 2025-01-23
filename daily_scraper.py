@@ -4,12 +4,17 @@ from bs4 import BeautifulSoup
 import time
 from pymongo import MongoClient
 import os
+import re
+import json
+from datetime import datetime
+import locale
+locale.setlocale(locale.LC_TIME, "es_ES.UTF-8")
 
 
 ###############################################################################################################################################
 # Dictionary with data sources links
 
-keywords = ['droga', 'narco', 'narcotráfico', 'cocaína', 'marihuana', 'drogas']
+keywords = ['droga', 'narco', 'narcotráfico', 'cocaína', 'marihuana', 'drogas', 'narcotraficante', 'monos', 'cantero']
 
 sources = {
     "litoral": {
@@ -25,11 +30,33 @@ sources = {
     "rosario12": {
         "general": "https://www.pagina12.com.ar/suplementos/rosario12/{date}",
     },
+    "lacapital": {
+        "los_monos": "https://www.lacapital.com.ar/los-monos-a39391.html",
+        "narco": "https://www.lacapital.com.ar/narco-a53261.html",
+        "narcotráfico": "https://www.lacapital.com.ar/narcotrafico-a26076.html",
+        "drogas": "https://www.lacapital.com.ar/drogas-a41562.html",
+        "violencia_narco": "https://www.lacapital.com.ar/violencia-narco-a1012674.html",
+        "cocaina": "https://www.lacapital.com.ar/cocaina-a51607.html",
+        "estupefacientes": "https://www.lacapital.com.ar/estupefacientes-a40894.html",
+        "policiales": "https://www.lacapital.com.ar/secciones/policiales.html"
+    }
 }
 
 headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
     }
+
+
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.realpath(__file__))
+
+# Construct the path to stopwords.json in the same directory as the script
+stopwords_path = os.path.join(script_dir, 'stopwords.json')
+
+# Read the stopwords file
+with open(stopwords_path, 'r', encoding='utf-8') as f:
+    stop_words = set(json.load(f))  # Convert to a set for efficient lookup
+
 
 # MONGO VARIABLES
 mongodb_uri = mongodb_uri = os.getenv("MONGODB_URI")
@@ -306,10 +333,158 @@ def scrape_content_date_aire(df):
     return df
     
 ###############################################################################################################################################
+# SCRAPE LINKS LA CAPITAL
+def scrape_links_and_titles_lacapital(sources, keywords_for_policiales):
+    """
+    Scrapes the given URLs from La Capital. For 'policiales', filters titles containing specific keywords.
+
+    Parameters:
+    - sources (dict): Dictionary containing source URLs and their corresponding tags.
+    - keywords_for_policiales (list): List of keywords to filter news titles for the 'policiales' tag.
+
+    Returns:
+    - pd.DataFrame: DataFrame containing scraped data with columns: 'link', 'title', 'tag', 'media'.
+    """
+    # List to store all scraped data
+    data = []
+    visited_links = set()  # To track (Link, Tag) combinations and check for duplicates
+
+    # Extract URLs and tags
+    urls = list(sources["lacapital"].values())
+    tags = list(sources["lacapital"].keys())
+
+    # Iterate through each URL and tag
+    for url, tag in zip(urls, tags):
+        try:
+            # Send a GET request to the base URL
+            response = requests.get(url, headers=headers)
+
+            # Check if the response is valid
+            if response.status_code != 200:
+                print(f"Failed to fetch {url}: Status code {response.status_code}")
+                continue
+
+            # Parse the HTML content
+            soup = BeautifulSoup(response.text, 'html.parser')
+            section = soup.find('section', class_="last-entrys")
+
+            # If no entries found, skip this URL
+            if not section:
+                print("No entries found. Skipping this URL.")
+                continue
+
+            # Extract links and titles
+            a_tags = section.find_all('a', class_="cover-link")
+            for a in a_tags:
+                href = a['href']
+                title = a.get('title', '').strip()
+
+                # For 'policiales', filter by keywords
+                if tag == 'policiales':
+                    if not any(keyword.lower() in title.lower() for keyword in keywords_for_policiales):
+                        continue  # Skip titles without the keywords
+
+                # Check for duplicate (Link, Tag)
+                if (href, tag) in visited_links:
+                    print("Duplicate Link and Tag found. Skipping this link.")
+                    continue
+
+                visited_links.add((href, tag))
+                data.append({'link': href, 'title': title, 'tag': tag, 'media': 'lacapital'})
+
+        except Exception as e:
+            print(f"Error processing {url}: {e}")
+
+    # Create a DataFrame from the data list
+    print("Links scraped from La Capital:", len(data))
+    return pd.DataFrame(data)
+
+
+###############################################################################################################################################
+# SCRAPE CONTENT AND DATE LA CAPITAL
+def scrape_content_date_lacapital(df):
+    """
+    Scrapes content and date for each link in the DataFrame.
+    Drops rows where 'date' is missing or 'content' has an error.
+    
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing a 'link' column.
+
+    Returns:
+    - pd.DataFrame: DataFrame with added 'content' and 'date' columns, cleaned of invalid rows.
+    """
+    # List to store the scraped data
+    scraped_data = []
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+
+    for i, link in enumerate(df['link']):
+        try:
+            # Request the webpage
+            response = requests.get(link, headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+            # Parse the webpage content
+            soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
+
+            # Extract divs with the class "article-body"
+            article_body_divs = soup.find_all('div', class_='article-body')
+
+            # Extract paragraphs within those divs
+            content_list = [
+                p.get_text(separator=" ", strip=True)
+                for div in article_body_divs
+                for p in div.find_all('p')
+                if p.get_text(separator=" ", strip=True) and not p.get_text(strip=True).startswith('>>')
+            ]
+
+            # Extract datetime attribute
+            date_element = soup.find('span', class_='nota-fecha')
+            date = date_element.text.strip() if date_element else None
+
+            # Handle cases where no content was found
+            if not content_list:
+                print(f"No content found for {link}")
+                content_list = ["No content found"]
+
+            # Store the result in the list
+            scraped_data.append({"content": content_list, "date": date})
+
+        except requests.exceptions.RequestException as e:
+            print(f"Request error for link {link}: {e}")
+            scraped_data.append({"content": [f"Request error: {e}"], "date": None})
+        except Exception as e:
+            print(f"Error for link {link}: {e}")
+            scraped_data.append({"content": [f"Error: {e}"], "date": None})
+
+    # Create a DataFrame from the scraped data
+    result_df = pd.DataFrame(scraped_data)
+
+    # Ensure both DataFrames align and assign the new columns
+    df = df.reset_index(drop=True)  # Reset index to ensure alignment
+    df['content'] = result_df['content']
+    df['date'] = result_df['date']
+
+    # Drop rows where 'date' is None or 'content' contains "No content found" or an error
+    df = df.dropna(subset=['date'])
+    df = df[~df['content'].apply(lambda x: any("No content found" in item or "Error" in item for item in x))]
+
+    # Convert date to datetime format
+    try:
+        df["date"] = df["date"].apply(lambda x: datetime.strptime(x, "%d de %B %Y"))
+    except Exception as e:
+        print(f"Error parsing date: {e}")
+
+    print("Articles scraped from La Capital:", len(df))
+
+    return df
+
+###############################################################################################################################################
 
  # MERGE LITORAL AND AIRE DATAFRAMES
 
-def merge_dataframes(df1, df2):
+def merge_dataframes(df1, df2, df3):
     """
     Merge two DataFrames, df1 and df2, into one and return the merged DataFrame.
     
@@ -326,7 +501,7 @@ def merge_dataframes(df1, df2):
         The merged DataFrame containing the data from both sources.
     """
     
-    merged_df = pd.concat([df1, df2], ignore_index=True)
+    merged_df = pd.concat([df1, df2, df3], ignore_index=True)
 
     merged_df = merged_df.drop_duplicates(subset=['link'], keep='first')
 
@@ -361,7 +536,27 @@ def remove_short_items_from_column(df, column_name):
 
     return df
 
+def remove_stopwords_from_column(df, column, stop_words):
+    """
+    Removes stopwords from the specified column of a DataFrame.
+    
+    Parameters:
+        df (pd.DataFrame): The input DataFrame.
+        column (str): The name of the column containing text.
+        stop_words (set): A set of stopwords to remove.
+        
+    Returns:
+        pd.DataFrame: A new DataFrame with the cleaned column.
+    """
+    def clean_text(text):
+        text = str(text).lower()  # Convert to lowercase
+        text = re.sub(r'[^a-záéíóúñü0-9\s]', '', text)  # Remove punctuation
+        words = text.split()  # Split text into words
+        return " ".join(word for word in words if word not in stop_words)
 
+    # Apply the cleaning function to the specified column
+    df[f"{column}_cleaned"] = df[column].apply(clean_text)
+    return df
 ###############################################################################################################################################
 # UPLOAD DATA TO MONGODB
 
@@ -416,14 +611,19 @@ def main():
 
     df_links_aire = scrape_links_and_titles_aire(sources)
 
-    # Apply the function to the 'Link' column
     df_content_date_aire = scrape_content_date_aire(df_links_aire)
-    
-    df_merged = merge_dataframes(df_content_date_litoral, df_content_date_aire)
-    
+
+    df_links_lacapital = scrape_links_and_titles_lacapital(sources, keywords)
+
+    df_content_date_lacapital = scrape_content_date_lacapital(df_links_lacapital)
+   
+    df_merged = merge_dataframes(df_content_date_litoral, df_content_date_aire, df_content_date_lacapital)
+   
     df_merged = remove_short_items_from_column(df_merged, 'content')
+
+    df_cleaned = remove_stopwords_from_column(df_merged, 'content', stop_words)
     
-    result = upload_dataframe_to_mongodb(df_merged, mongodb_uri, db_name, collection_name, unique_field)
+    result = upload_dataframe_to_mongodb(df_cleaned, mongodb_uri, db_name, collection_name, unique_field)
     
     print(result)
 

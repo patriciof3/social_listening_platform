@@ -24,6 +24,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_github_actions.txt
 
+      - name: Set up Spanish locale
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y locales
+          sudo locale-gen es_ES.UTF-8
+          export LANG=es_ES.UTF-8
+          export LANGUAGE=es_ES:es
+          export LC_ALL=es_ES.UTF-8
+
       - name: Run Scraper
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
