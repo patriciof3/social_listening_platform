@@ -555,7 +555,7 @@ def remove_stopwords_from_column(df, column, stop_words):
         return " ".join(word for word in words if word not in stop_words)
 
     # Apply the cleaning function to the specified column
-    df[f"{column}_cleaned"] = df[column].apply(clean_text)
+    df["cleaned_content"] = df[column].apply(clean_text)
     return df
 ###############################################################################################################################################
 # UPLOAD DATA TO MONGODB
