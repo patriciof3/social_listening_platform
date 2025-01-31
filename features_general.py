@@ -16,7 +16,14 @@ font_style_title = dict(
 
 color_map = {
     'ellitoral': '#5dade2',  # Blue
-    'aire': '#F08080'        # Red
+    'aire': '#F08080', # Red
+    'lacapital' : '#f1e85c' # Green        
+}
+
+text_positions = {
+    'ellitoral': 'top left',
+    'aire': 'top left',
+    'lacapital': 'bottom center',
 }
 
 def plot_cumulative_articles(df):
@@ -26,7 +33,7 @@ def plot_cumulative_articles(df):
     # Group the data and calculate cumulative sum for each media outlet
     grouped_df = df.groupby(['date', 'media']).size().reset_index(name='article_count')
     grouped_df['cumulative_count'] = grouped_df.groupby('media')['article_count'].cumsum()
-
+    max_date = grouped_df['date'].max()
     # Create the Plotly line plot with cumulative counts
     fig = px.line(
         grouped_df,
@@ -51,7 +58,7 @@ def plot_cumulative_articles(df):
                 text=[f"{row['media']}: {row['cumulative_count']}"],
                 mode='text',
                 showlegend=False,
-                textposition='top left',
+                textposition=text_positions.get(row["media"], 'middle right'),  # Default to 'middle right',
                 textfont=font_style
             )
         )
@@ -64,12 +71,16 @@ def plot_cumulative_articles(df):
 
     # Update layout for better readability
     fig.update_layout(
+        # xaxis=dict(
+        # range=[grouped_df['date'].min(), max_date + pd.Timedelta(days=90)],  # Add 5 days buffer
+        # title="Fecha",
+        # ),
         xaxis_title='Fecha',
         yaxis_title=None,
         showlegend=False,  
         template='plotly_dark',
         font=font_style,
-        title="Cantidad de artículos acumulados por fecha",
+        title="Cantidad de artículos acumulados",
         title_font=font_style_title,
         #title_xanchor='center',
     )
