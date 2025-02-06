@@ -11,6 +11,7 @@ A platform for monitoring and analyzing online discussions, designed to scrape, 
 - **Visualization**: Provides insights through dashboards and interactive visualizations.
 
 
+![imagen](https://github.com/user-attachments/assets/33c464f2-e0db-4364-a1a2-857221fee545)
 
 
 
