@@ -14,4 +14,6 @@ A platform for monitoring and analyzing online discussions, designed to scrape, 
 ![imagen](https://github.com/user-attachments/assets/33c464f2-e0db-4364-a1a2-857221fee545)
 
 
+![imagen](https://github.com/user-attachments/assets/ffa81127-f482-4a50-8900-dae68f8c6707)
 
+![imagen](https://github.com/user-attachments/assets/ff0eb28c-90a0-4c4f-b90e-535fa8945252)
