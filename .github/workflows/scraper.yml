@@ -38,3 +38,5 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           python daily_scraper.py
+
+# Reactivated on 2025-08-31
