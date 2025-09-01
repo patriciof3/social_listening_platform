@@ -1,11 +1,10 @@
 name: Scrape Content
 
 on:
-
+  workflow_dispatch:
   schedule:
     - cron: "0 0 * * *" # Runs daily
 
-  workflow_dispatch:
   
 jobs:
   scrape-content:
