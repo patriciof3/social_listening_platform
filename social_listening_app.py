@@ -1,7 +1,7 @@
 import streamlit as st
 from mongodb_features import reading_data
 from features_general import plot_cumulative_articles, plot_article_distribution, plot_avg_articles_per_day
-from features_cuantitativa import plot_top_words, plot_word_count_by_period
+from features_cuantitativa import plot_top_words, plot_word_count_by_period, plot_word_count_by_period_relative
 import pandas as pd
 
 st.set_page_config(layout="wide")
@@ -93,12 +93,16 @@ def cuantitativa_page():
         with col1:
             period = st.selectbox("¿En qué intervalo de tiempo quieres visualizar el término?", ("Mensual", "Anual", "Diario"))
         with col2:
-            word_to_count = st.text_input("Término para graficar:", "justicia")
+            word_to_count = st.text_input("Término para graficar:", "monos")
   
         if word_to_count:
             fig, word_count, word_present = plot_word_count_by_period(st.session_state.filtered_df, word_to_count, period)
             st.plotly_chart(fig, use_container_width=True)
             st.write(f"La palabra '{word_to_count}' aparece {word_count} veces, en un total de {word_present} artículos.")
+
+            fig, word_count, word_present = plot_word_count_by_period_relative(st.session_state.filtered_df, word_to_count, period)
+            st.plotly_chart(fig, use_container_width=True)
+
         else:
             st.write("No hay palabra seleccionada.")
 

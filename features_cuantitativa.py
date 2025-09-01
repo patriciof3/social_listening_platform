@@ -131,3 +131,95 @@ def plot_word_count_by_period(df, word_to_count, period):
              )
           
              return fig, sum(df['word_count']), sum(df['word_present'])
+
+
+def plot_word_count_by_period_relative(df, word_to_count, period):
+    """
+    Generate a bar plot showing the count of a word by period, normalized by the number of articles.
+
+    Parameters:
+        df (pd.DataFrame): DataFrame containing 'date' and 'Document' columns.
+        word_to_count (str): Word to count in the 'Document' column.
+        period (str): Time period to group by ('Diario', 'Mensual', or 'Anual').
+
+    Returns:
+        fig: Plotly figure object.
+        total_word_count: Total count of the word across all articles.
+        total_word_present: Total number of articles containing the word.
+    """
+
+    def count_word(text, word):
+        # Convert text to lowercase and split into words
+        words = text.lower().split()
+        # Count occurrences of the word
+        word_count = words.count(word.lower())
+        # Check if the word is present (1 if present, 0 if not)
+        word_present = 1 if word.lower() in words else 0
+        return word_count, word_present
+
+    # Apply the function to the 'cleaned_content' column
+    df[['word_count', 'word_present']] = df['cleaned_content'].apply(
+        lambda text: pd.Series(count_word(text, word_to_count)))
+    
+    def refactored_period(period):
+        if period == 'Mensual':
+            return 'M'
+        elif period == 'Anual':
+            return 'Y'
+    
+    if period == 'Mensual' or period == 'Anual':
+        period_refactored = refactored_period(period)
+        df['period'] = df['date'].dt.to_period(period_refactored)
+        # Group by period and calculate metrics
+        word_counts_by_period = df.groupby('period').agg(
+            total_word_count=('word_count', 'sum'),
+            total_word_present=('word_present', 'sum'),
+            total_articles=('word_present', 'size')
+        ).reset_index()
+        # Calculate relative metrics
+        word_counts_by_period['word_present_proportion'] = word_counts_by_period['total_word_present'] / word_counts_by_period['total_articles']
+        word_counts_by_period['word_count_per_article'] = word_counts_by_period['total_word_count'] / word_counts_by_period['total_articles']
+        word_counts_by_period['period'] = word_counts_by_period['period'].dt.to_timestamp()
+
+        # Create a bar chart using Plotly
+        fig = px.bar(
+            word_counts_by_period,
+            x='period',
+            y='word_present_proportion',  # Use the relative metric
+            title=f"Proporción de artículos que contienen el término '{word_to_count}'",
+            labels={'period': 'Fecha', 'word_present_proportion': 'Proporción de artículos'},
+            text='word_present_proportion',
+            hover_data=['period', 'total_word_count', 'total_articles']
+        )
+        # Customize the layout
+        fig.update_traces(textposition='outside')
+        fig.update_layout(
+            xaxis_title="Fecha",
+            yaxis_title="Proporción de artículos",
+            xaxis_tickformat="%Y",
+        )
+        return fig, sum(df['word_count']), sum(df['word_present'])
+    
+    elif period == 'Diario':
+        # Calculate relative metrics for daily data
+        df['word_present_proportion'] = df['word_present'] / 1  # Daily proportion is just word_present
+        df['word_count_per_article'] = df['word_count'] / 1  # Daily count per article is just word_count
+
+        # Create a bar chart using Plotly
+        fig = px.bar(
+            df,
+            x='date',
+            y='word_present_proportion',  # Use the relative metric
+            title=f"Proporción de artículos que contienen el término '{word_to_count}'",
+            labels={'date': 'Fecha', 'word_present_proportion': 'Proporción de artículos'},
+            text='word_present_proportion',
+            hover_data=['date', 'word_count']
+        )
+        # Customize the layout
+        fig.update_traces(textposition='outside')
+        fig.update_layout(
+            xaxis_title="Fecha",
+            yaxis_title="Proporción de artículos",
+            xaxis_tickformat="%b %Y",
+        )
+        return fig, sum(df['word_count']), sum(df['word_present'])
