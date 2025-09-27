@@ -14,18 +14,20 @@ locale.setlocale(locale.LC_TIME, "es_ES.UTF-8")
 ###############################################################################################################################################
 # Dictionary with data sources links
 
-keywords = ['droga', 'narco', 'narcotráfico', 'cocaína', 'marihuana', 'drogas', 'narcotraficante', 'monos', 'cantero']
+keywords = ['droga', 'narco', 'cocaína', 'marihuana', 'drogas', 'narcotraficante', 'monos', 'cantero']
 
 sources = {
     "litoral": {
         "violencia_narco": "https://www.ellitoral.com/tag/violencia-narco",
         "narcotrafico": "https://www.ellitoral.com/tag/narcotrafico",
+        "policiales": "https://www.ellitoral.com/temas/santa-fe-policiales"
     },
     "aire": {
         "droga": "https://www.airedesantafe.com.ar/droga-a848/",
         "narcotrafico": "https://www.airedesantafe.com.ar/narcotrafico-a534",
         "cocaina": "https://www.airedesantafe.com.ar/cocaina-a1378",
         "drogas": "https://www.airedesantafe.com.ar/drogas-a4787",
+        "policiales" : "https://www.airedesantafe.com.ar/policiales",
     },
     "rosario12": {
         "general": "https://www.pagina12.com.ar/suplementos/rosario12/{date}",
@@ -68,50 +70,54 @@ unique_field = "link"
 
 # Scraper El Litoral: LINKS AND TITLES
 
-def scrape_links_and_titles_litoral(sources_dict):
+def scrape_links_and_titles_litoral(sources_dict, keywords):
+    """
+    Scrape articles from El Litoral. Only filter titles for 'sucesos' and 'policiales' by keywords.
 
-    # List to store all scraped data
+    Parameters:
+    - sources_dict (dict): Dictionary containing URLs and tags.
+    - keywords (list): List of keywords to filter specific articles.
+
+    Returns:
+    - pd.DataFrame: DataFrame with columns 'link', 'title', 'tag', 'media'.
+    """
     data = []
 
-    # Extract URLs and tags
     urls = list(sources_dict["litoral"].values())
     tags = list(sources_dict["litoral"].keys())
 
     for url, tag in zip(urls, tags):
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                print(f"Failed to retrieve {url}. Status code: {response.status_code}")
+                continue
 
-         response = requests.get(url)
-     
-         # Check if the request was successful
-         if response.status_code == 200:
-             # Parse the webpage content with BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            div = soup.find('div', class_='styles_detail-left__RyXEu')
 
-             soup = BeautifulSoup(response.content, 'html.parser')
-     
-             div = soup.find('div', class_='styles_detail-left__RyXEu')
-     
-             if div:
-                 # Find all <a> tags within the div
-                 links = div.find_all('a', href=True)
+            if not div:
+                print(f"No div with the specified class found on {url}.")
+                continue
 
-                 for link in links:
-                     href = "https://www.ellitoral.com" + link['href']  # Prepend the URL prefix to the href attribute
-     
-                     # Find the <h1> inside the <a> tag (if it exists)
-                     h1 = link.find('h1')
+            links = div.find_all('a', href=True)
+            for link in links:
+                href = "https://www.ellitoral.com" + link['href']
+                h1 = link.find('h1')
+                title = h1.get_text(strip=True) if h1 else None
 
-                     title = h1.get_text(strip=True) if h1 else None  # Extract text or use None if not found
-     
-                     # Append the link, title, and additional info to the data list
-                     data.append({'link': href, 'title': title, 'tag': tag, 'media': 'ellitoral'})
-     
-             else:
-                 print(f"No div with the specified class found on {url}.")
+                if title:
+                    # Only filter 'sucesos' and 'policiales' by keywords
+                    if tag in ['sucesos', 'policiales']:
+                        if not any(keyword.lower() in title.lower() for keyword in keywords):
+                            continue  # Skip if no keyword matches
 
-     
-         # Create a DataFrame from the data list
-    df = pd.DataFrame(data)
+                    data.append({'link': href, 'title': title, 'tag': tag, 'media': 'ellitoral'})
 
-    return df
+        except Exception as e:
+            print(f"Error processing {url}: {e}")
+
+    return pd.DataFrame(data)
 
 # def scrape_links_and_titles_impresa_litoral(url: str):
     
@@ -225,40 +231,54 @@ def scrape_content_date_ellitoral(df):
 
 # AIRE: LINKS AND TITLES
 
-def scrape_links_and_titles_aire(sources_dict):
+def scrape_links_and_titles_aire(sources_dict, keywords):
+    """
+    Scrape articles from Aire de Santa Fe. Only filter titles for 'policiales' by keywords.
 
-    # List to store all scraped data
+    Parameters:
+    - sources_dict (dict): Dictionary containing URLs and tags.
+    - keywords (list): List of keywords to filter 'policiales' articles.
+
+    Returns:
+    - pd.DataFrame: DataFrame with columns 'link', 'title', 'tag', 'media'.
+    """
     data = []
 
-    # Extract URLs and tags
     urls = list(sources_dict["aire"].values())
     tags = list(sources_dict["aire"].keys())
 
     for url, tag in zip(urls, tags):
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                print(f"Failed to retrieve {url}. Status code: {response.status_code}")
+                continue
 
-        response = requests.get(url, headers=headers)
-     
-         # Check if the request was successful
-        if response.status_code == 200:
-             # Parse the webpage content with BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
-
             divs = soup.find_all('div', class_='article-title')
-            if divs:
-                for div in divs:
-                    a_tag = div.find('a', class_='a-article-link')
-                    if a_tag:
-                        href = a_tag['href']
-                        title = a_tag.get_text(strip=True)
-                        data.append({'link': href, 'title': title, 'tag': tag, 'media': 'aire'})
-                    else:
-                        print(f"No 'a' tag with the specified class found in div on {url}.")
-            else:
-                print(f"No div with the specified class found on {url}.")
 
-        else:
-            print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
-    
+            if not divs:
+                print(f"No div with the specified class found on {url}.")
+                continue
+
+            for div in divs:
+                a_tag = div.find('a', class_='a-article-link')
+                if a_tag:
+                    href = a_tag['href']
+                    title = a_tag.get_text(strip=True)
+
+                    # Only filter 'policiales' by keywords
+                    if tag == "policiales":
+                        if not any(keyword.lower() in title.lower() for keyword in keywords):
+                            continue  # Skip this article if no keywords match
+
+                    data.append({'link': href, 'title': title, 'tag': tag, 'media': 'aire'})
+                else:
+                    print(f"No 'a' tag with the specified class found in div on {url}.")
+
+        except Exception as e:
+            print(f"Error processing {url}: {e}")
+
     return pd.DataFrame(data)
 
 ###############################################################################################################################################
@@ -601,7 +621,7 @@ def upload_dataframe_to_mongodb(df, mongodb_uri, db_name, collection_name, uniqu
 
 def main():
     
-    df_links_litoral = scrape_links_and_titles_litoral(sources)
+    df_links_litoral = scrape_links_and_titles_litoral(sources, keywords)
     
     # df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa")
     
@@ -609,7 +629,7 @@ def main():
     
     df_content_date_litoral = scrape_content_date_ellitoral(df_links_litoral)
 
-    df_links_aire = scrape_links_and_titles_aire(sources)
+    df_links_aire = scrape_links_and_titles_aire(sources, keywords)
 
     df_content_date_aire = scrape_content_date_aire(df_links_aire)
 
