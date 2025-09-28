@@ -1,5 +1,7 @@
 import plotly.express as px
 import plotly.graph_objects as go
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 import pandas as pd
 
 # Set font style and color map variables
@@ -26,66 +28,52 @@ text_positions = {
     'lacapital': 'bottom center',
 }
 
-def plot_cumulative_articles(df):
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
+def plot_cumulative_articles_monthly(df):
     """
-    Generates a line plot of cumulative articles over time for each media outlet.
+    Generates a stacked area chart of cumulative articles per month by media outlet.
     """
-    # Group the data and calculate cumulative sum for each media outlet
-    grouped_df = df.groupby(['date', 'media']).size().reset_index(name='article_count')
-    grouped_df['cumulative_count'] = grouped_df.groupby('media')['article_count'].cumsum()
-    max_date = grouped_df['date'].max()
-    # Create the Plotly line plot with cumulative counts
-    fig = px.line(
-        grouped_df,
-        x='date',
+    # Ensure 'date' column is datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Create a 'month' column (first day of the month)
+    df['month'] = df['date'].values.astype('datetime64[M]')
+
+    # Group by month and media, count articles
+    monthly_counts = df.groupby(['month', 'media']).size().reset_index(name='article_count')
+
+    # Compute cumulative sum for each media
+    monthly_counts['cumulative_count'] = monthly_counts.groupby('media')['article_count'].cumsum()
+
+    # Create stacked area chart
+    fig = px.area(
+        monthly_counts,
+        x='month',
         y='cumulative_count',
         color='media',
-        title="Cumulative Articles Over Time",
-        labels={'cumulative_count': 'Cumulative Articles', 'date': 'Date'},
-        color_discrete_map=color_map,
-        hover_data=['date', 'cumulative_count']
+        title="Cantidad de artículos acumulados",
+        labels={'cumulative_count': 'Artículos acumulados'},
+        color_discrete_map=color_map
     )
 
-    # Get the last data points for each media outlet
-    last_points = grouped_df.groupby('media').tail(1)
-
-    # Add text annotations for the last data points
-    for _, row in last_points.iterrows():
-        fig.add_trace(
-            go.Scatter(
-                x=[row['date']],
-                y=[row['cumulative_count']],
-                text=[f"{row['media']}: {row['cumulative_count']}"],
-                mode='text',
-                showlegend=False,
-                textposition=text_positions.get(row["media"], 'middle right'),  # Default to 'middle right',
-                textfont=font_style
-            )
-        )
-
-    # Update hovertemplate to format the date as desired
-    fig.update_traces(
-        hovertemplate='<b>Fecha: %{x|%d-%m-%Y}</b><br>' 
-                      + 'Cantidad: %{y}<extra></extra>'
-    )
-
-    # Update layout for better readability
+    # Customize layout
     fig.update_layout(
-        # xaxis=dict(
-        # range=[grouped_df['date'].min(), max_date + pd.Timedelta(days=90)],  # Add 5 days buffer
-        # title="Fecha",
-        # ),
-        xaxis_title='Fecha',
-        yaxis_title=None,
-        showlegend=False,  
         template='plotly_dark',
         font=font_style,
-        title="Cantidad de artículos acumulados",
+        showlegend=True,
+        xaxis_title='Mes',
+        yaxis_title='Artículos acumulados',
         title_font=font_style_title,
-        #title_xanchor='center',
+        hovermode='x unified'
     )
 
     return fig
+
+
+
 
 
 def plot_article_distribution(df):
@@ -111,8 +99,9 @@ def plot_article_distribution(df):
         textinfo='percent+label', 
         textfont=font_style,
         hoverinfo='label+percent', 
-        pull=[0.05] * len(media_counts),  
-        opacity=0.9               
+        pull=[0.025] * len(media_counts),  
+        #opacity=0.9,
+        marker=dict(line=dict(color='white', width=1))  # add white edges
     )
 
     # Customize layout
@@ -126,39 +115,73 @@ def plot_article_distribution(df):
     return fig_pie
 
 
-def plot_avg_articles_per_day(df):
+
+def plot_articles_last_week(df):
     """
-    Generates a bar plot of the average number of articles published per day by media outlet.
+    Generates a bar plot of the total number of articles published by media outlet in the last month.
     """
-    # Ensure the 'date' column is in datetime format
+    # Ensure 'date' is datetime
     df['date'] = pd.to_datetime(df['date'])
 
-    # Group by 'media' and 'date' and count the articles per day
-    media_daily_count = df.groupby(['media', 'date']).size().reset_index(name='article_count')
+    # Filter for articles from the last 30 days
+    last_month = df['date'].max() - pd.Timedelta(days=7)
+    df_last_month = df[df['date'] >= last_month]
 
-    # Calculate the average number of articles published per day for each media outlet
-    media_avg_per_day = media_daily_count.groupby('media')['article_count'].mean().reset_index()
+    # Count articles per media
+    media_count = df_last_month.groupby('media').size().reset_index(name='article_count')
 
     # Create the bar plot
     fig_bar = px.bar(
-        media_avg_per_day,
+        media_count,
         x='media',
         y='article_count',
-        title="Average Articles Published Per Day",
-        labels={'article_count': 'Promedio de artículos por día'},
+        title="Artículos publicados en la última semana",
+        labels={'article_count': 'Cantidad de artículos'},
         color='media',
         color_discrete_map=color_map
     )
-
+    fig_bar.update_traces(marker=dict(line=dict(color='white', width=1)))
     # Customize layout
     fig_bar.update_layout(
         template="plotly_dark",
         showlegend=False,
         font=font_style,
-        title="Promedio de artículos publicados por día",
         xaxis_title=None,
         yaxis_title=None,
         title_font=font_style_title
     )
 
     return fig_bar
+
+def wordcloud_previous_week(df):
+    """
+    Generates a Word Cloud from articles published in the previous week and returns the figure.
+    """
+    # Ensure 'date' is datetime
+    df['date'] = pd.to_datetime(df['date'])
+
+    # Filter for last week's articles
+    today = pd.Timestamp.today()
+    start_last_week = today - pd.Timedelta(days=today.weekday() + 7)  # Last week's Monday
+    df_last_week = df[df['date'] >= start_last_week]
+    # Combine all article content
+    text = " ".join(df_last_week['cleaned_content'].dropna().astype(str).tolist())
+
+    # Generate the word cloud
+    wc = WordCloud(
+        width=1000,
+        height=520,
+        background_color='black',
+        colormap='Set2',
+        max_words=200
+    ).generate(text)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12,6))
+    ax.imshow(wc, interpolation='bilinear')
+    ax.axis('off')
+
+    # Remove extra padding/margins
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+    return fig

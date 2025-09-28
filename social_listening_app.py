@@ -1,8 +1,13 @@
 import streamlit as st
 from mongodb_features import reading_data
-from features_general import plot_cumulative_articles, plot_article_distribution, plot_avg_articles_per_day
+from features_general import *
 from features_cuantitativa import plot_top_words, plot_word_count_by_period, plot_word_count_by_period_relative
 import pandas as pd
+import streamlit as st
+import pandas as pd
+from st_aggrid import AgGrid, GridOptionsBuilder, ColumnsAutoSizeMode
+from st_aggrid import JsCode
+from io import BytesIO
 
 st.set_page_config(layout="wide")
 df = reading_data("social_listening", "drugtrafficking")
@@ -11,22 +16,32 @@ df = reading_data("social_listening", "drugtrafficking")
 ##### GENERAL SECTION #########        
 
 def general_page():
-    st.title("Descripción general")
+    st.title("Monitor de noticias de Narcotráfico en Santa Fe")
 
-    st.markdown("<p style='color: White; font-size: 20px;'>Esta app expone los resultados de un scrapping de noticias vinculadas al narcotráfico en portales de la provincia de Santa Fe. Todos los días a las 9pm se escanean secciones vinculadas a esta problemática en los portales seleccionados y se guarda el título, fecha, link y contenido de los mismos en una base de datos</p>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='color: White; font-size: 20px;'>Estos son los resultados de un scraping de noticias vinculadas al narcotráfico en portales de la provincia de Santa Fe. Todos los días a las 9pm se escanean secciones vinculadas a esta problemática en los portales seleccionados y se guarda el título, fecha, link y contenido de los mismos en una base de datos</p>",
+        unsafe_allow_html=True
+    )
 
-    fig_line =plot_cumulative_articles(df)
-    st.plotly_chart(fig_line, use_container_width=True)
+    # Cumulative articles
+    fig_bar = plot_cumulative_articles_monthly(df)
+    st.plotly_chart(fig_bar, use_container_width=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_bar = plot_avg_articles_per_day(df)
-        st.plotly_chart(fig_bar, use_container_width=True)
-    with col2:
-        fig_pie =plot_article_distribution(df)
-        st.plotly_chart(fig_pie, use_container_width=True)    
+    # Article distribution pie chart
+    fig_pie = plot_article_distribution(df)
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+    # Articles last week bar chart
+    fig_last_week = plot_articles_last_week(df)
+    st.plotly_chart(fig_last_week, use_container_width=True)
+
+    # WordCloud for previous week
+    st.subheader("Word Cloud: Artículos de la última semana")
+    plt.figure(figsize=(10,5))
+    wordcloud_previous_week(df)  # generate WordCloud on plt
+    plt.axis('off')
+    st.pyplot(plt)
     
-
 ##### QUANTITATIVE SECTION #########        
 
 def cuantitativa_page():
@@ -112,9 +127,61 @@ def semantica_page():
     st.title("Semántica")
     st.write("This is the Semántica page. Here you can add semantic analysis, NLP techniques, etc.")
 
+
+##### CONSULTA SECTION #########        
+
+import streamlit as st
+import pandas as pd
+from st_aggrid import AgGrid, GridOptionsBuilder
+
+def consulta_bd_page(df):
+    st.title("Consulta de Base de Datos")
+
+    st.markdown(
+        "<p style='color: White; font-size: 18px;'>Filtra los artículos por fecha y medio, visualiza los resultados y descárgalos en CSV.</p>", 
+        unsafe_allow_html=True
+    )
+
+    # --- FILTERS ---
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("Fecha inicial", value='2025-08-01')
+    with col2:
+        end_date = st.date_input("Fecha final", value=df['date'].max())
+
+    media_options = df['media'].unique().tolist()
+    selected_media = st.multiselect("Selecciona medio(s)", media_options, default=media_options)
+
+    # --- FILTER DATA ---
+    filtered_df = df[
+        (df['date'] >= pd.to_datetime(start_date)) & 
+        (df['date'] <= pd.to_datetime(end_date)) &
+        (df['media'].isin(selected_media))
+    ][["link", "title", "date", "media", "content"]]
+
+    st.markdown(f"### Resultados: {len(filtered_df)} artículos encontrados")
+
+    # --- DISPLAY DATAFRAME WITH AGGRID ---
+
+    gb = GridOptionsBuilder.from_dataframe(filtered_df)
+    gb.configure_default_column(editable=False, filterable=True, groupable=True, auto_size=True, tooltip_field=None)
+    grid_options = gb.build()
+
+    AgGrid(filtered_df, gridOptions=grid_options, height=400, fit_columns_on_grid_load=True)
+
+    # --- DOWNLOAD BUTTON ---
+    csv = filtered_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Descargar CSV",
+        data=csv,
+        file_name="articulos_filtrados.csv",
+        mime='text/csv'
+    )
+
+
 # Sidebar navigation
 st.sidebar.title("Secciones")
-page = st.sidebar.radio("Selecciona una página", ["General", "Cuantitativa", "Semántica"])
+page = st.sidebar.radio("Selecciona una página", ["General", "Cuantitativa", "Semántica", "Consulta"])
 
 # Display the corresponding page based on the user's selection
 if page == "General":
@@ -123,3 +190,5 @@ elif page == "Cuantitativa":
     cuantitativa_page()
 elif page == "Semántica":
     semantica_page()
+elif page == "Consulta":
+    consulta_bd_page(df)
