@@ -60,6 +60,11 @@ with open(stopwords_path, 'r', encoding='utf-8') as f:
     stop_words = set(json.load(f))  # Convert to a set for efficient lookup
 
 
+# Entities JSON path
+entities_path = os.path.join(script_dir, "entities.json")
+with open(entities_path, 'r', encoding='utf-8') as f:
+    entities = json.load(f)  # list of multiword expressions
+
 # MONGO VARIABLES
 mongodb_uri = mongodb_uri = os.getenv("MONGODB_URI")
 db_name = "social_listening"
@@ -577,6 +582,34 @@ def remove_stopwords_from_column(df, column, stop_words):
     # Apply the cleaning function to the specified column
     df["cleaned_content"] = df[column].apply(clean_text)
     return df
+
+###############################################################################################################################################
+
+def apply_entities_to_text(df, column, entities):
+    """
+    Replaces multiword entities in a text column with underscore versions.
+
+    Args:
+        df (pd.DataFrame): DataFrame with text.
+        column (str): Column name to process.
+        entities (list): List of multiword entities.
+
+    Returns:
+        pd.DataFrame: DataFrame with updated column.
+    """
+    def replace_entities(text):
+        text = str(text)
+        for entity in entities:
+            # Replace case-insensitive
+            pattern = re.compile(re.escape(entity), re.IGNORECASE)
+            text = pattern.sub(entity.replace(" ", "_"), text)
+        return text
+
+    df[column] = df[column].apply(replace_entities)
+    return df
+
+
+
 ###############################################################################################################################################
 # UPLOAD DATA TO MONGODB
 
@@ -642,6 +675,8 @@ def main():
     df_merged = remove_short_items_from_column(df_merged, 'content')
 
     df_cleaned = remove_stopwords_from_column(df_merged, 'content', stop_words)
+
+    df_cleaned = apply_entities_to_text(df_cleaned, 'cleaned_content', entities)
     
     result = upload_dataframe_to_mongodb(df_cleaned, mongodb_uri, db_name, collection_name, unique_field)
     
