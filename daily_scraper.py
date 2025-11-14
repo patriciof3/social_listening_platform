@@ -185,48 +185,58 @@ def scrape_links_and_titles_litoral(sources_dict, keywords):
 
 # EL LITORAL: CONTENT AND DATE
 def scrape_content_date_ellitoral(df):
-    # List to store the scraped data
     scraped_data = []
     
     for link in df['link']:
         try:
-            # Request the webpage
-            response = requests.get(link, headers=headers)
-            response.raise_for_status()  # Raise an exception for HTTP errors
-            
-            # Parse the webpage content
+            response = requests.get(link, headers=headers, timeout=15)
+            response.raise_for_status()
             soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
             
             # Extract paragraphs
-            paragraphs = soup.findAll('p')
+            paragraphs = soup.find_all('p')
             content_list = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
             
-            # Extract datetime attribute
-            datetime_element = soup.find(attrs={"datetime": True})
-            date = datetime_element['datetime'] if datetime_element else None
-            
-            # Remove strings related to other parts of the webpage
+            # Try meta first (most reliable)
+            published_meta = soup.find("meta", attrs={"name": "article:published_time"})
+            if published_meta:
+                date = published_meta.get("content")
+            else:
+                # Fallback: try <time datetime="...">
+                time_tag = soup.find('time', attrs={"datetime": True})
+                date = time_tag.get('datetime') if time_tag else None
+
+            # Clean unwanted strings from content
             target_string = "Los comentarios realizados son de exclusiva responsabilidad de sus autores"
             content_list = [s for s in content_list if target_string not in s]
-            
-            # Store the result in the list
-            scraped_data.append({"content": content_list if content_list else ["No content found"], "date": date})
+
+            scraped_data.append({
+                "content": content_list if content_list else ["No content found"],
+                "date": date
+            })
         
         except requests.exceptions.RequestException as e:
             scraped_data.append({"content": [f"Request error: {e}"], "date": None})
         except Exception as e:
             scraped_data.append({"content": [f"Error: {e}"], "date": None})
     
-    # Create a DataFrame from the scraped data
+    # Build DataFrame and align with original df
     result_df = pd.DataFrame(scraped_data)
-    
-    # Ensure both DataFrames align and assign the new columns
-    df = df.reset_index(drop=True)  # Reset index to ensure alignment
+    df = df.reset_index(drop=True).copy()
     df['content'] = result_df['content']
     df['date'] = result_df['date']
-    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.tz_localize(None)
+
+    # Normalize dates robustly: parse as UTC and drop tzinfo (works for mixed inputs).
+    df['date'] = pd.to_datetime(df['date'], utc=True, errors='coerce').dt.tz_convert(None)
 
     print("Articles scraped from El Litoral:", len(df))
+    if df["date"].notna().all():
+        print("All elements in df have date")
+    else:
+        missing = df["date"].isna().sum()
+        print(f"Some elements in df are missing date ({missing} missing)")
+
+    return df
 
     return df
 
@@ -355,6 +365,13 @@ def scrape_content_date_aire(df):
     df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.tz_localize(None)
     
     print("Articles scraped from Aire:", len(df))
+
+    if df["date"].notna().all():
+        print("All elements in df have date")
+    else:
+        print("Some elements in df are missing date")
+    return df
+
     return df
     
 ###############################################################################################################################################
@@ -502,7 +519,11 @@ def scrape_content_date_lacapital(df):
         print(f"Error parsing date: {e}")
 
     print("Articles scraped from La Capital:", len(df))
-
+    
+    if df["date"].notna().all():
+        print("All elements in df have date")
+    else:
+        print("Some elements in df are missing date")
     return df
 
 ###############################################################################################################################################
@@ -656,9 +677,9 @@ def main():
     
     df_links_litoral = scrape_links_and_titles_litoral(sources, keywords)
     
-    # df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa")
+    # df_links_impresa_litoral = scrape_links_and_titles_impresa_litoral("https://www.ellitoral.com/edicion-impresa") ESTO NO VA POR AHORA
     
-    # df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral)
+    # df_litoral_merged = merge_dataframes(df_links_litoral, df_links_impresa_litoral) ESTO NO VA POR AHORA
     
     df_content_date_litoral = scrape_content_date_ellitoral(df_links_litoral)
 
