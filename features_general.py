@@ -1,8 +1,9 @@
 import plotly.express as px
 import plotly.graph_objects as go
-from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+import numpy as np
 
 # Set font style and color map variables
 font_style = dict(
@@ -153,35 +154,65 @@ def plot_articles_last_week(df):
 
     return fig_bar
 
-def wordcloud_previous_week(df):
+
+def plot_top_tfidf_last_week(df, top_n=20):
     """
-    Generates a Word Cloud from articles published in the previous week and returns the figure.
+    Generates a bar chart of top TF-IDF terms from articles in the last 7 days.
     """
     # Ensure 'date' is datetime
     df['date'] = pd.to_datetime(df['date'])
 
-    # Filter for last week's articles
-    today = pd.Timestamp.today()
-    start_last_week = today - pd.Timedelta(days=today.weekday() + 7)  # Last week's Monday
-    df_last_week = df[df['date'] >= start_last_week]
+
+
+    # Filter for the last 7 days
+    last_7_days = df['date'].max() - pd.Timedelta(days=7)
+    df_last_week = df[df['date'] >= last_7_days]
+
     # Combine all article content
-    text = " ".join(df_last_week['cleaned_content'].dropna().astype(str).tolist())
+    corpus = df_last_week['cleaned_content'].dropna().astype(str).tolist()
 
-    # Generate the word cloud
-    wc = WordCloud(
-        width=1000,
-        height=520,
-        background_color='black',
-        colormap='Set2',
-        max_words=200
-    ).generate(text)
+    if len(corpus) == 0:
+        return go.Figure()  # return empty figure if no data
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=(12,6))
-    ax.imshow(wc, interpolation='bilinear')
-    ax.axis('off')
+    # Create TF-IDF vectorizer
+    vectorizer = TfidfVectorizer(
+        max_features=5000,
+        ngram_range=(1, 1),
+        min_df = 2  # include unigrams and bigrams
+    )
+    tfidf = vectorizer.fit_transform(corpus)
 
-    # Remove extra padding/margins
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    # Compute mean TF-IDF per term
+    terms = vectorizer.get_feature_names_out()
+    mean_tfidf = np.asarray(tfidf.mean(axis=0)).ravel()
+
+    # Create DataFrame and sort
+    tfidf_df = pd.DataFrame({
+        'term': terms,
+        'mean_tfidf': mean_tfidf
+    }).sort_values('mean_tfidf', ascending=False)
+
+    top_terms = tfidf_df.head(top_n)
+
+    # Create bar chart
+    fig = px.bar(
+        top_terms[::-1],  # reverse for descending order in plot
+        x='mean_tfidf',
+        y='term',
+        orientation='h',
+        labels={'mean_tfidf': 'Relevancia (TF-IDF)', 'term': 'Término'},
+    )
+
+    # Apply dark theme and styling
+    fig.update_traces(marker=dict(color='#5dade2', line=dict(color='white', width=1)))
+    fig.update_layout(
+        template='plotly_dark',
+        font=font_style,
+        title_font=font_style_title,
+        xaxis_title=None,
+        yaxis_title=None,
+        showlegend=False,
+        margin=dict(l=0, r=0, t=50, b=0),
+    )
 
     return fig
