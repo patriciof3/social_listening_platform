@@ -29,12 +29,12 @@ st.markdown(
 )
 
 fig_bar = plot_cumulative_articles_monthly(df)
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig_bar, width='stretch')
 
 col1, col2 = st.columns(2)
 with col1:
     fig_pie = plot_article_distribution(df)
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, width='stretch')
 with col2:
     fig_last_week = plot_articles_last_week(df)
-    st.plotly_chart(fig_last_week, use_container_width=True)
+    st.plotly_chart(fig_last_week, width='stretch')

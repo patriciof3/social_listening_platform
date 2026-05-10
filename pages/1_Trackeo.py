@@ -16,10 +16,10 @@ with col2:
 
 if word_to_count:
     fig, word_count, word_present = plot_word_count_by_period(df, word_to_count, period)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     st.write(f"La palabra '{word_to_count}' aparece {word_count} veces, en un total de {word_present} artículos.")
 
     fig, word_count, word_present = plot_word_count_by_period_relative(df, word_to_count, period)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 else:
     st.write("No hay palabra seleccionada.")
