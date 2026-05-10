@@ -1,6 +1,8 @@
 # Ignore data folder
 /data
+/historic_data
 .python-version
 __pycache__/word_count_plot.cpython-310.pyc
 /tests
 *.pyc 
+.env
