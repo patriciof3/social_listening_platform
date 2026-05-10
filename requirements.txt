@@ -1,14 +1,8 @@
 google-genai
 python-dotenv
 pandas
-openpyxl
-chromadb==0.5.3 
-pyarrow
-bs4
-selenium
 streamlit
 pymongo
 streamlit-aggrid
 plotly
 matplotlib
-scikit-learn
