@@ -105,7 +105,7 @@ def plot_word_count_by_period(df, word_to_count, period):
              fig.update_layout(
                  xaxis_title="Fecha",
                  yaxis_title="Recuento",
-                 xaxis_tickformat="%Y",
+                 xaxis_tickformat="%Y-%m",
              )
 
              return fig, sum(df['word_count']), sum(df['word_present'])
