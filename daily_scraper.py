@@ -286,8 +286,7 @@ def scrape_links_and_titles_aire(sources_dict, keywords):
                         href = a_tag['href']
                         title = a_tag.get('title', a_tag.get_text(strip=True))
                         title = re.sub(r'^Aire de Santa Fe\s*\|\s*', '', title).strip()
-                        print(href)
-                        print(title)
+
 
                     # Only filter 'policiales' by keywords
                     if tag == "policiales":
@@ -348,14 +347,14 @@ def scrape_content_date_aire(df):
                 content_list = ["Content wrapper not found"]
 
             # Extract date from <time> tag by class
-            time_tag = soup.find('time', class_='text-xs font-light leading-normal news-detail__date')
+            time_tag = soup.find('time', class_=lambda c: c and 'news-detail__date' in c)
             if time_tag:
-                raw_date = time_tag.get_text(strip=True)           # "13 de mayo de 2026 · 10:22"
-                raw_date = raw_date.replace('·', '').strip()        # "13 de mayo de 2026  10:22"
+                raw_date = time_tag.get_text(strip=True)
+                raw_date = raw_date.replace('·', '').strip()
                 for es, en in spanish_months.items():
                     raw_date = raw_date.replace(es, en)
-                parts = [p for p in raw_date.replace('de', '').split() if p]  # ['13', 'May', '2026', '10:22']
-                date = pd.to_datetime(' '.join(parts), format='%d %B %Y %H:%M')
+                parts = [p for p in raw_date.replace('de', '').split() if p]
+                date = pd.to_datetime(' '.join(parts), dayfirst=True)
             else:
                 date = None
 
@@ -364,6 +363,7 @@ def scrape_content_date_aire(df):
         except requests.exceptions.RequestException as e:
             scraped_data.append({"content": [f"Request error: {e}"], "date": None})
         except Exception as e:
+            print(f"Error scraping {link}: {type(e).__name__}: {e}")
             scraped_data.append({"content": [f"Error: {e}"], "date": None})
     
     result_df = pd.DataFrame(scraped_data)
