@@ -9,6 +9,11 @@ import json
 from datetime import datetime
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES.UTF-8")
+from google import genai
+from google.genai import types
+import time
+
+client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 ###############################################################################################################################################
@@ -270,17 +275,19 @@ def scrape_links_and_titles_aire(sources_dict, keywords):
                 continue
 
             soup = BeautifulSoup(response.content, 'html.parser')
-            divs = soup.find_all('div', class_='article-title')
+            divs = soup.find_all('li', class_='simple-news-list__item')
 
             if not divs:
                 print(f"No div with the specified class found on {url}.")
-                continue
-
-            for div in divs:
-                a_tag = div.find('a', class_='a-article-link')
-                if a_tag:
-                    href = a_tag['href']
-                    title = a_tag.get_text(strip=True)
+            else:
+                for div in divs:
+                    a_tag = div.find('a', class_='simple-news-list__link')
+                    if a_tag:
+                        href = a_tag['href']
+                        title = a_tag.get('title', a_tag.get_text(strip=True))
+                        title = re.sub(r'^Aire de Santa Fe\s*\|\s*', '', title).strip()
+                        print(href)
+                        print(title)
 
                     # Only filter 'policiales' by keywords
                     if tag == "policiales":
@@ -301,43 +308,56 @@ def scrape_links_and_titles_aire(sources_dict, keywords):
 # AIRE: CONTENT AND DATE
 
 def scrape_content_date_aire(df):
-
     scraped_data = []
     headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
         }
+    
+    spanish_months = {
+        'enero': 'January', 'febrero': 'February', 'marzo': 'March',
+        'abril': 'April', 'mayo': 'May', 'junio': 'June',
+        'julio': 'July', 'agosto': 'August', 'septiembre': 'September',
+        'octubre': 'October', 'noviembre': 'November', 'diciembre': 'December'
+    }
+
     for link in df['link']:
-        
         try:
-            
             response = requests.get(link, headers=headers, timeout=10)
             response.raise_for_status()
-    
             soup = BeautifulSoup(response.content.decode('utf-8', errors='ignore'), 'html.parser')
             
             # Extract paragraphs
-            paragraphs = soup.findAll('p')
-            content_list = [p.get_text() for p in paragraphs if p.get_text()]
-            content_list = content_list[:-5]
+            body_wrappers = soup.find_all(
+                'div',
+                class_='flex flex-col gap-6 news-detail__body'
+            )
+            
+            content_list = []
+            for wrapper in body_wrappers:
+                paragraphs = wrapper.find_all('p', recursive=False)
+                for p in paragraphs:
+                    text = p.get_text(" ", strip=True)
+                    if (
+                        text
+                        and "LEER MÁS" not in text
+                        and len(text) > 20
+                    ):
+                        content_list.append(text)
 
-            #remove p elements that direct to other articles
-            target_strings = ["LEER MÁS", " LEER MÁS"]
-            content_list = [s for s in content_list if not any(s.startswith(t) or t in s for t in target_strings)]
+            if not content_list:
+                content_list = ["Content wrapper not found"]
 
-            # Extract the <div> with the class 'article-date'
-            date_div = soup.find('div', class_='article-date')
-    
-            # Extract datetime attribute
-            if date_div:
-                # Find the <time> tag within that div
-                datetime_element = date_div.find('time', attrs={"datetime": True})
-                if datetime_element:
-                    date = datetime_element['datetime']  # Extract the value of the datetime attribute
-                else:
-                    date = "Date not found in time tag"
+            # Extract date from <time> tag by class
+            time_tag = soup.find('time', class_='text-xs font-light leading-normal news-detail__date')
+            if time_tag:
+                raw_date = time_tag.get_text(strip=True)           # "13 de mayo de 2026 · 10:22"
+                raw_date = raw_date.replace('·', '').strip()        # "13 de mayo de 2026  10:22"
+                for es, en in spanish_months.items():
+                    raw_date = raw_date.replace(es, en)
+                parts = [p for p in raw_date.replace('de', '').split() if p]  # ['13', 'May', '2026', '10:22']
+                date = pd.to_datetime(' '.join(parts), format='%d %B %Y %H:%M')
             else:
-                date = "No article-date div found"
-                # Store the result in the list
+                date = None
 
             scraped_data.append({"content": content_list if content_list else ["No content found"], "date": date})
         
@@ -346,32 +366,22 @@ def scrape_content_date_aire(df):
         except Exception as e:
             scraped_data.append({"content": [f"Error: {e}"], "date": None})
     
-    # Create a DataFrame from the scraped data
     result_df = pd.DataFrame(scraped_data)
-       
-    # Ensure both DataFrames align and assign the new columns
-    df = df.reset_index(drop=True)  # Reset index to ensure alignment
+    df = df.reset_index(drop=True)
     df['content'] = result_df['content']
     df['date'] = result_df['date']
 
-    df['content'] = df['content'].apply(
-        lambda lst: [s.replace('\xa0', '') for s in lst]
-        )
-    
-    df['content'] = df['content'].apply(
-    lambda lst: [s.replace('LEER MÁS ►', '') for s in lst]
-    )
+    df['content'] = df['content'].apply(lambda lst: [s.replace('\xa0', '') for s in lst])
+    df['content'] = df['content'].apply(lambda lst: [s.replace('LEER MÁS ►', '') for s in lst])
 
     df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.tz_localize(None)
     
     print("Articles scraped from Aire:", len(df))
-
     if df["date"].notna().all():
         print("All elements in df have date")
     else:
-        print("Some elements in df are missing date")
-    return df
-
+        missing = df["date"].isna().sum()
+        print(f"Some elements in df are missing date ({missing} missing)")
     return df
     
 ###############################################################################################################################################
@@ -670,6 +680,102 @@ def upload_dataframe_to_mongodb(df, mongodb_uri, db_name, collection_name, uniqu
         "skipped_count": len(df) - len(df_to_insert)
     }
 
+########################## EMBEDDINGS FUNCTIONS ############################################################################################
+
+def chunk_text(text, chunk_size=400, overlap=60):
+    words = str(text).split()
+    chunks = []
+    start = 0
+    while start < len(words):
+        end = start + chunk_size
+        chunk = " ".join(words[start:end])
+        chunks.append(chunk)
+        start += chunk_size - overlap
+    return chunks
+
+
+def get_embedding(text, retries=5):
+    for i in range(retries):
+        try:
+            result = client_gemini.models.embed_content(
+                model="gemini-embedding-001",
+                contents=text,
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=768
+                )
+            )
+            return result.embeddings[0].values
+        except Exception as e:
+            error_str = str(e).lower()
+            if "quota" in error_str or "resource exhausted" in error_str:
+                wait_time = (2 ** i) + 5
+                print(f"[RATE LIMIT] Waiting {wait_time}s... (attempt {i+1}/{retries})")
+                time.sleep(wait_time)
+            else:
+                print(f"[EMBED ERROR] {e}")
+                break
+    return None
+
+
+def embed_new_articles(db_name, collection_name, content_field="text_content"):
+    client_mongo = MongoClient(mongodb_uri, serverSelectionTimeoutMS=30000, socketTimeoutMS=60000)
+    source_collection = client_mongo[db_name][collection_name]
+    chunks_collection = client_mongo[db_name][f"{collection_name}_chunks"]
+
+    # Get already processed IDs
+    processed_ids = set(doc["original_id"] for doc in chunks_collection.find({}, {"original_id": 1}))
+
+    # Only grab docs without embeddings
+    query = {content_field: {"$exists": True}}
+    total = source_collection.count_documents(query)
+    pending = total - len(processed_ids)
+    print(f"[EMBED] {pending} new articles to embed out of {total} total")
+
+    done = 0
+    failed = 0
+
+    for doc in source_collection.find(query).batch_size(50):
+        doc_id = doc["_id"]
+        if doc_id in processed_ids:
+            continue
+
+        text = doc.get(content_field, "")
+        if not text or not str(text).strip():
+            print(f"[SKIP] doc {doc_id} has empty {content_field}")
+            failed += 1
+            continue
+
+        chunks = chunk_text(text)
+        print(f"[CHUNK] doc {doc_id} → {len(chunks)} chunks")
+
+        doc_chunks = []
+        for i, chunk in enumerate(chunks):
+            vector = get_embedding(chunk)
+            if vector:
+                doc_chunks.append({
+                    "original_id": doc_id,
+                    "chunk_id": i,
+                    "title": doc.get("title", ""),
+                    "date": doc.get("date", ""),
+                    "link": doc.get("link", ""),
+                    "media": doc.get("media", ""),
+                    "text_content": chunk,
+                    "embedding": vector
+                })
+            else:
+                failed += 1
+
+        if doc_chunks:
+            chunks_collection.insert_many(doc_chunks)
+            done += 1
+            print(f"[EMBED DONE] {done} articles embedded so far")
+
+        time.sleep(0.5)
+
+    client_mongo.close()
+    print(f"[EMBED] Finished. {done} embedded, {failed} failed.")
+
 ###############################################################################################################################################
 # MAIN FUNCTION
 
@@ -703,6 +809,8 @@ def main():
     
     print(result)
 
+    # Embed only the newly uploaded articles
+    #embed_new_articles(db_name, collection_name, content_field="content")
 
 if __name__ == "__main__":
     main()
