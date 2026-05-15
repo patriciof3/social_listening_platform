@@ -9,11 +9,11 @@ import json
 from datetime import datetime
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES.UTF-8")
-from google import genai
-from google.genai import types
+#from google import genai
+#from google.genai import types
 import time
 
-client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+#client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 ###############################################################################################################################################
