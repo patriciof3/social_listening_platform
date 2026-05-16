@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-from social_listening_app import load_data
 from st_aggrid import AgGrid, GridOptionsBuilder
-
+from features_general import get_data
 st.set_page_config(layout="wide", page_title="Consulta de Base de Datos")
 
-df = load_data()
+df = get_data()
 
 st.title("Consulta de Base de Datos")
 st.markdown(

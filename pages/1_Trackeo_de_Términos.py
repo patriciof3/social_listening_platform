@@ -1,10 +1,10 @@
 import streamlit as st
-from social_listening_app import load_data
 from features_cuantitativa import plot_word_count_by_period, plot_word_count_by_period_relative
+from features_general import get_data
 
 st.set_page_config(layout="wide", page_title="Trackeo de Términos")
 
-df = load_data()
+df = get_data()
 
 st.title("Trackeo de Términos")
 

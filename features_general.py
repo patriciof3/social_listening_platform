@@ -2,7 +2,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 
 # Set font style and color map variables
@@ -32,6 +31,20 @@ text_positions = {
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from mongodb_features import reading_data
+import streamlit as st
+
+def get_data():
+    if "df" not in st.session_state:
+        df = reading_data("social_listening", "drugtrafficking")
+        strings_to_remove = ["santa_fe", "rosario", "argentina", "años", "narcotráfico", "drogas"]
+        for s in strings_to_remove:
+            df["cleaned_content"] = df["cleaned_content"].str.replace(s, "", regex=False)
+        df["cleaned_content"] = df["cleaned_content"].str.replace(r"\s+", " ", regex=True).str.strip()
+        st.session_state["df"] = df
+    return st.session_state["df"]
+
+
 
 def plot_cumulative_articles_monthly(df):
     """
@@ -155,3 +168,59 @@ def plot_articles_last_week(df):
     return fig_bar
 
 
+def get_weekly_avg_per_media(df):
+    """
+    Returns a dict with average articles per week (last 52 weeks) per media.
+    Also returns week-over-week change.
+    """
+    df['date'] = pd.to_datetime(df['date'])
+    one_year_ago = df['date'].max() - pd.Timedelta(weeks=52)
+    df_year = df[df['date'] >= one_year_ago].copy()
+    df_year['week'] = df_year['date'].dt.to_period('W')
+
+    weekly = df_year.groupby(['week', 'media']).size().reset_index(name='count')
+    avg = weekly.groupby('media')['count'].mean().round(1)
+
+    # Week over week change
+    last_week = df['date'].max() - pd.Timedelta(days=7)
+    prev_week = last_week - pd.Timedelta(days=7)
+
+    current = df[df['date'] >= last_week].groupby('media').size()
+    previous = df[(df['date'] >= prev_week) & (df['date'] < last_week)].groupby('media').size()
+    change = (current - previous).fillna(0)
+
+    return avg, change
+
+
+def plot_weekly_trend(df):
+    """
+    Line chart of weekly article count per media for the last 12 weeks.
+    """
+    df['date'] = pd.to_datetime(df['date'])
+    twelve_weeks_ago = df['date'].max() - pd.Timedelta(weeks=24)
+    df_recent = df[df['date'] >= twelve_weeks_ago].copy()
+    df_recent['week'] = df_recent['date'].dt.to_period('W').dt.start_time
+
+    weekly = df_recent.groupby(['week', 'media']).size().reset_index(name='article_count')
+
+    fig = px.line(
+        weekly,
+        x='week',
+        y='article_count',
+        color='media',
+        title="Tendencia semanal de artículos (últimos 6 meses)",
+        markers=True,
+        color_discrete_map=color_map
+    )
+    fig.update_layout(
+        template='plotly_dark',
+        font=font_style,
+        title_font=font_style_title,
+        xaxis_title='Semana',
+        yaxis_title='Artículos',
+        hovermode='x unified',
+        legend_title_text=None
+    )
+    fig.update_traces(line=dict(width=2.5), marker=dict(size=7))
+
+    return fig

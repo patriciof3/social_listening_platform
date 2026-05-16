@@ -182,7 +182,7 @@ Pregunta: {question}"""
 try:
     with st.spinner("Generando respuesta..."):
         response = client_gemini.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt
         )
         st.markdown(response.text)
