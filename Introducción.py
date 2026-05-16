@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from mongodb_features import reading_data
 from features_general import (
     plot_cumulative_articles_monthly,
     plot_weekly_trend,
