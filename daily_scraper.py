@@ -9,12 +9,11 @@ import json
 from datetime import datetime
 import locale
 locale.setlocale(locale.LC_TIME, "es_ES.UTF-8")
-#from google import genai
-#from google.genai import types
+from google import genai
+from google.genai import types
 import time
 
-#client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
+client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 ###############################################################################################################################################
 # Dictionary with data sources links
@@ -645,39 +644,24 @@ def apply_entities_to_text(df, column, entities):
 # UPLOAD DATA TO MONGODB
 
 def upload_dataframe_to_mongodb(df, mongodb_uri, db_name, collection_name, unique_field):
-    """
-    Uploads data from a DataFrame to a MongoDB collection, ensuring no duplicates 
-    based on the specified unique field.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame containing data to upload.
-    - mongodb_uri (str): The MongoDB connection URI.
-    - db_name (str): The name of the database.
-    - collection_name (str): The name of the collection.
-    - unique_field (str): The field to check for duplicates (e.g., 'link').
-
-    Returns:
-    - dict: A summary of the operation with counts of inserted and skipped documents.
-    """
-    # Connect to MongoDB
     client = MongoClient(mongodb_uri)
     db = client[db_name]
     collection = db[collection_name]
 
-    # Fetch existing unique field values
     existing_values = set(doc[unique_field] for doc in collection.find({}, {unique_field: 1, "_id": 0}))
-
-    # Filter the DataFrame to exclude duplicates
     df_to_insert = df[~df[unique_field].isin(existing_values)]
 
-    # Insert new documents
+    inserted_ids = []
     if not df_to_insert.empty:
-        collection.insert_many(df_to_insert.to_dict(orient="records"))
+        records = df_to_insert.to_dict(orient="records")
+        insert_result = collection.insert_many(records)
+        inserted_ids = insert_result.inserted_ids  # ← capture the new _ids
 
-    # Return a summary of the operation
     return {
         "inserted_count": len(df_to_insert),
-        "skipped_count": len(df) - len(df_to_insert)
+        "skipped_count": len(df) - len(df_to_insert),
+        "df_inserted": df_to_insert,
+        "inserted_ids": inserted_ids        # ← pass these along too
     }
 
 ########################## EMBEDDINGS FUNCTIONS ############################################################################################
@@ -718,44 +702,35 @@ def get_embedding(text, retries=5):
     return None
 
 
-def embed_new_articles(db_name, collection_name, content_field="text_content"):
+def embed_new_articles_from_df(df_new, inserted_ids, db_name, collection_name, content_field="content"):
+    if df_new.empty:
+        print("[EMBED] No new articles to embed.")
+        return
+
     client_mongo = MongoClient(mongodb_uri, serverSelectionTimeoutMS=30000, socketTimeoutMS=60000)
-    source_collection = client_mongo[db_name][collection_name]
     chunks_collection = client_mongo[db_name][f"{collection_name}_chunks"]
 
-    # Get already processed IDs
-    processed_ids = set(doc["original_id"] for doc in chunks_collection.find({}, {"original_id": 1}))
+    print(f"[EMBED] {len(df_new)} new articles to embed")
+    done, failed = 0, 0
 
-    # Only grab docs without embeddings
-    query = {content_field: {"$exists": True}}
-    total = source_collection.count_documents(query)
-    pending = total - len(processed_ids)
-    print(f"[EMBED] {pending} new articles to embed out of {total} total")
-
-    done = 0
-    failed = 0
-
-    for doc in source_collection.find(query).batch_size(50):
-        doc_id = doc["_id"]
-        if doc_id in processed_ids:
-            continue
-
+    for i, (_, doc) in enumerate(df_new.iterrows()):
         text = doc.get(content_field, "")
         if not text or not str(text).strip():
-            print(f"[SKIP] doc {doc_id} has empty {content_field}")
+            print(f"[SKIP] Row {i} has empty {content_field}")
             failed += 1
             continue
 
         chunks = chunk_text(text)
-        print(f"[CHUNK] doc {doc_id} → {len(chunks)} chunks")
+        original_id = inserted_ids[i]  # aligned by insertion order
+        print(f"[CHUNK] doc {original_id} → {len(chunks)} chunks")
 
         doc_chunks = []
-        for i, chunk in enumerate(chunks):
+        for j, chunk in enumerate(chunks):
             vector = get_embedding(chunk)
             if vector:
                 doc_chunks.append({
-                    "original_id": doc_id,
-                    "chunk_id": i,
+                    "original_id": original_id,
+                    "chunk_id": j,
                     "title": doc.get("title", ""),
                     "date": doc.get("date", ""),
                     "link": doc.get("link", ""),
@@ -775,7 +750,6 @@ def embed_new_articles(db_name, collection_name, content_field="text_content"):
 
     client_mongo.close()
     print(f"[EMBED] Finished. {done} embedded, {failed} failed.")
-
 ###############################################################################################################################################
 # MAIN FUNCTION
 
@@ -806,11 +780,16 @@ def main():
     df_cleaned = apply_entities_to_text(df_cleaned, 'cleaned_content', entities)
     
     result = upload_dataframe_to_mongodb(df_cleaned, mongodb_uri, db_name, collection_name, unique_field)
-    
-    print(result)
 
-    # Embed only the newly uploaded articles
-    #embed_new_articles(db_name, collection_name, content_field="content")
+    print(f"Inserted: {result['inserted_count']}, Skipped: {result['skipped_count']}")
+
+    embed_new_articles_from_df(
+        result["df_inserted"],
+        result["inserted_ids"],
+        db_name,
+        collection_name,
+        content_field="content"
+    )
 
 if __name__ == "__main__":
     main()
