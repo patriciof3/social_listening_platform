@@ -10,12 +10,17 @@ load_dotenv()
 
 st.set_page_config(layout="wide", page_title="Búsqueda Semántica")
 
-st.title("Búsqueda Semántica")
+st.title("Preguntale a los artículos")
 st.markdown(
-    "<p style='color: white; font-size: 18px;'>Busca artículos por similitud semántica usando embeddings de Gemini y Atlas Vector Search.</p>",
+    """<p style='color: white; font-size: 18px;'>
+    Ingresá un tema y una pregunta para consultar los artículos scrapeados mediante búsqueda semántica. 
+    El sistema convierte tu tema en un embedding vectorial y recupera los fragmentos de artículos 
+    más similares semánticamente — no por palabras clave exactas, sino por proximidad de significado. 
+    Esos fragmentos se usan como contexto para que un LLM responda tu pregunta citando las fuentes 
+    periodísticas correspondientes.
+    </p>""",
     unsafe_allow_html=True
 )
-
 # --- API KEY ---
 gemini_key = st.text_input("Gemini API Key", type="password", placeholder="AIza...")
 if not gemini_key:

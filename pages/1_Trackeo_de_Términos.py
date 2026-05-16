@@ -8,6 +8,17 @@ df = get_data()
 
 st.title("Trackeo de Términos")
 
+st.markdown(
+    """<p style='color: white; font-size: 20px;'>
+    Ingresá un término para ver con qué frecuencia apareció en los artículos scrapeados. 
+    El primer gráfico muestra la cantidad de artículos que lo mencionan por período — 
+    al pasar el cursor sobre cada barra podés ver también las menciones totales, contando 
+    repeticiones dentro del mismo artículo. El segundo gráfico normaliza ese recuento 
+    por el total de artículos publicados en cada período, para comparar la relevancia 
+    del término independientemente del volumen de cobertura.
+    </p>""",
+    unsafe_allow_html=True
+)
 col1, col2 = st.columns(2)
 with col1:
     period = st.selectbox("¿En qué intervalo de tiempo quieres visualizar el término?", ("Mensual", "Anual"))

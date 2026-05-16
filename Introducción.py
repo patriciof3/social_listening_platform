@@ -12,7 +12,7 @@ st.set_page_config(layout="wide", page_title="Monitor Narcotráfico Santa Fe")
 df = get_data()
 
 # --- HEADER ---
-st.title("Monitor de cobertura mediática del Narcotráfico en Santa Fe")
+st.title("Monitor de Cobertura Mediática del Narcotráfico en Santa Fe")
 st.markdown(
     "<p style='color: white; font-size: 20px;'>Estos son los resultados de un scraping de noticias vinculadas al narcotráfico en portales de la provincia de Santa Fe. Todos los días a las 9pm se escanean secciones vinculadas a esta problemática en portales seleccionados y se almacenan título, fecha, link y contenido de los artículos en una base de datos.</p>",
     unsafe_allow_html=True
