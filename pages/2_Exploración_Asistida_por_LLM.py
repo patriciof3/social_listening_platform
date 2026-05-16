@@ -49,7 +49,7 @@ with st.expander("Filtros opcionales"):
         date_to = st.date_input("Hasta", value=None)
 
 # --- TOP K ---
-top_k = st.slider("Chunks similares a recuperar", min_value=1, max_value=20, value=5)
+top_k = st.slider("Chunks similares a recuperar", min_value=1, max_value=20, value=10)
 
 # --- SEARCH ---
 run = st.button("🔍 Buscar", type="primary")
