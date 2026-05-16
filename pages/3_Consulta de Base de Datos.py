@@ -8,13 +8,13 @@ df = get_data()
 
 st.title("Consulta de Base de Datos")
 st.markdown(
-    "<p style='color: white; font-size: 18px;'>Filtra los artículos por fecha, medio o palabras clave, y visualiza los resultados.</p>",
+    "<p style='color: white; font-size: 18px;'>Filtra los artículos por fecha, medio o palabras clave, y genera una tabla con los resultados.</p>",
     unsafe_allow_html=True
 )
 
 col1, col2 = st.columns(2)
 with col1:
-    start_date = st.date_input("Fecha inicial", value=pd.to_datetime("2025-08-01"))
+    start_date = st.date_input("Fecha inicial", value=pd.to_datetime("2025-01-01"))
 with col2:
     end_date = st.date_input("Fecha final", value=df['date'].max())
 
