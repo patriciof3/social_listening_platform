@@ -35,7 +35,7 @@ st.markdown(
                 display:flex; align-items:center; gap:20px; margin-bottom:8px;">
         <span style="font-size:36px;">📰</span>
         <div>
-            <p style="color:#aaaaaa; font-size:13px; margin:0; text-transform:uppercase; letter-spacing:1px;">Total de artículos scrapeados</p>
+            <p style="color:#aaaaaa; font-size:13px; margin:0; text-transform:uppercase; letter-spacing:1px;">Total de artículos recolectados</p>
             <p style="color:#ffffff; font-size:42px; font-weight:bold; margin:2px 0; line-height:1;">{total_articles:,}</p>
         </div>
     </div>
@@ -90,7 +90,7 @@ def load_summaries():
 
 summaries = load_summaries()
 
-st.markdown("### ¿De qué habló cada medio esta semana?")
+st.markdown("### ¿De qué habló cada medio estos últimos días?")
 cols = st.columns(3)
 for col, media in zip(cols, medias):
     color = colors[media]
@@ -110,7 +110,7 @@ for col, media in zip(cols, medias):
 st.divider()
 
 # --- RESUMEN INTEGRATIVO ---
-st.markdown("### Agenda mediática del día")
+st.markdown("### Agenda mediática reciente")
 integrativo = summaries.get("integrativo", "")
 if integrativo:
     st.markdown(
