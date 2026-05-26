@@ -55,7 +55,7 @@ Resumen:"""
 
         try:
             response = client_gemini.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=prompt
             )
             summary_text = response.text.strip()
@@ -102,7 +102,7 @@ No uses bullets. Solo texto corrido."""
 
             try:
                 response = client_gemini.models.generate_content(
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=prompt_integrativo
                 )
                 summaries_col.insert_one({
