@@ -25,11 +25,11 @@ def generate_summaries():
             print(f"[SKIP] {media_key} already summarized today")
             continue
 
-        # Fetch last 10 articles
+        # Fetch last 5 articles
         docs = list(
             collection.find({"media": media_key})
             .sort("date", -1)
-            .limit(10)
+            .limit(5)
         )
 
         if not docs:
