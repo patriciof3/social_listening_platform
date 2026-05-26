@@ -68,7 +68,7 @@ def plot_cumulative_articles_monthly(df):
         x='month',
         y='cumulative_count',
         color='media',
-        title="Cantidad de artículos acumulados",
+        title="Progresión artículos acumulados",
         labels={'cumulative_count': 'Artículos acumulados'},
         color_discrete_map=color_map
     )

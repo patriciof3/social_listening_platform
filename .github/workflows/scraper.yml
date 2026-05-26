@@ -39,6 +39,12 @@ jobs:
         run: |
           python daily_scraper.py
 
+      - name: Generate Daily Summaries
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python generate_summaries.py
 # Reactivated on 2025-08-31
 # Reactivated on 2026-02-15
 # Reactivated on 2026-04-21
