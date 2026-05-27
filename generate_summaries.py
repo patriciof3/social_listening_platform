@@ -2,8 +2,7 @@ import os
 import datetime
 from pymongo import MongoClient
 from google import genai
-from dotenv import load_dotenv
-load_dotenv()
+
 
 MEDIAS = {
     "ellitoral": "El Litoral",
@@ -16,7 +15,8 @@ def generate_summaries():
     collection = client_mongo["social_listening"]["drugtrafficking"]
     summaries_col = client_mongo["social_listening"]["daily_summaries"]
 
-    client_gemini = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
     today = datetime.date.today().isoformat()
 
     for media_key, media_label in MEDIAS.items():
