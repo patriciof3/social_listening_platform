@@ -62,13 +62,13 @@ A continuación encontrarás los últimos 5 artículos de tres medios de Santa F
 Tu tarea es producir 4 textos en total, respondiendo ÚNICAMENTE en el siguiente formato JSON y nada más:
 
 {{
-  "ellitoral": "1 o 2 párrafos resumiendo la cobertura reciente de El Litoral",
-  "aire": "1 o 2 párrafos resumiendo la cobertura reciente de Aire de Santa Fe",
-  "lacapital": "1 o 2 párrafos resumiendo la cobertura reciente de La Capital",
+  "ellitoral": "Bullets con los temas y sucesos que cubrieron los artículos de El Litoral, si más de un artículo se refiere al mismo tema, únelos",
+  "aire": "Bullets con los temas y sucesos que cubrieron los artículos de Aire de Santa Fe, si más de un artículo se refiere al mismo tema, únelos",
+  "lacapital": "Bullets con los temas y sucesos que cubrieron los artículos de La Capital, si más de un artículo se refiere al mismo tema, únelos",
   "integrativo": "entre 1 y 3 párrafos integrando la cobertura de los tres medios, identificando temas comunes, perspectivas distintas o agendas exclusivas de cada uno"
 }}
 
-Para cada resumen: sé específico con nombres, lugares y hechos concretos. No uses bullets. Solo texto corrido.
+Para cada resumen: sé específico con nombres, lugares y hechos concretos. 
 Para el integrativo: identificá si cubren los mismos hechos con distinto énfasis, temas exclusivos de algún medio, o agenda común.
 
 Artículos:
