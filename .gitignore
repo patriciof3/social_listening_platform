@@ -9,3 +9,4 @@ __pycache__/word_count_plot.cpython-310.pyc
 /historic_data
 /venv
 /historic_data
+*.ipynb
