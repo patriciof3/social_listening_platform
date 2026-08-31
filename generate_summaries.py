@@ -1,7 +1,10 @@
 import os
+import json
 import datetime
+
 from pymongo import MongoClient
 from google import genai
+
 
 MEDIAS = {
     "ellitoral": "El Litoral",
@@ -9,105 +12,279 @@ MEDIAS = {
     "lacapital": "La Capital"
 }
 
+
 def generate_summaries():
+    # MongoDB
     client_mongo = MongoClient(os.getenv("MONGODB_URI"))
     collection = client_mongo["social_listening"]["drugtrafficking"]
     summaries_col = client_mongo["social_listening"]["daily_summaries"]
-    client_gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+    # Gemini
+    client_gemini = genai.Client(
+        api_key=os.getenv("GEMINI_API_KEY")
+    )
+
     today = datetime.date.today().isoformat()
 
-    # Skip if everything already generated today
+    # --------------------------------------------------
+    # Check existing summaries
+    # --------------------------------------------------
     existing = set(
-        doc["media"] for doc in summaries_col.find({"date": today}, {"media": 1})
+        doc["media"]
+        for doc in summaries_col.find(
+            {"date": today},
+            {"media": 1}
+        )
     )
+
     all_keys = set(MEDIAS.keys()) | {"integrativo"}
+
     if all_keys.issubset(existing):
         print("[SKIP] All summaries already generated today")
         client_mongo.close()
         return
 
+    # --------------------------------------------------
     # Fetch last 5 articles per media
+    # --------------------------------------------------
     all_articles = {}
+
     for media_key, media_label in MEDIAS.items():
+
         docs = list(
-            collection.find({"media": media_key})
+            collection.find(
+                {"media": media_key}
+            )
             .sort("date", -1)
             .limit(5)
         )
+
         if docs:
+
+            articles_text = "\n\n---\n\n".join(
+                [
+                    (
+                        f"Título: {d.get('title', '')}\n"
+                        f"Fecha: {str(d.get('date', ''))[:10]}\n"
+                        f"Contenido: {d.get('content', '')[:500]}"
+                    )
+                    for d in docs
+                ]
+            )
+
             all_articles[media_key] = {
                 "label": media_label,
-                "articles": "\n\n---\n\n".join([
-                    f"Título: {d.get('title', '')}\nFecha: {str(d.get('date', ''))[:10]}\nContenido: {d.get('content', '')[:500]}"
-                    for d in docs
-                ])
+                "articles": articles_text
             }
-            print(f"[FETCH] {media_key}: {len(docs)} articles")
-        else:
-            print(f"[SKIP] No articles found for {media_key}")
 
+            print(
+                f"[FETCH] {media_key}: "
+                f"{len(docs)} articles"
+            )
+
+        else:
+            print(
+                f"[SKIP] No articles found for {media_key}"
+            )
+
+    # --------------------------------------------------
+    # Stop if no articles were found
+    # --------------------------------------------------
     if not all_articles:
         print("[ERROR] No articles fetched for any media")
         client_mongo.close()
         return
 
-    # Build single prompt
-    medias_text = "\n\n========\n\n".join([
-        f"MEDIO: {data['label']}\n\n{data['articles']}"
-        for media_key, data in all_articles.items()
-    ])
+    # --------------------------------------------------
+    # Build articles text for prompt
+    # --------------------------------------------------
+    medias_text = "\n\n========\n\n".join(
+        [
+            (
+                f"MEDIO: {data['label']}\n\n"
+                f"{data['articles']}"
+            )
+            for media_key, data in all_articles.items()
+        ]
+    )
 
-    prompt = f"""Eres un analista especializado en narcotráfico y crimen organizado en Argentina.
+    # --------------------------------------------------
+    # Gemini prompt
+    # --------------------------------------------------
+    prompt = f"""
+Eres un analista especializado en narcotráfico y crimen organizado en Argentina.
+
 A continuación encontrarás los últimos 5 artículos de tres medios de Santa Fe.
-Tu tarea es producir 4 textos en total, respondiendo ÚNICAMENTE en el siguiente formato JSON y nada más:
+
+Tu tarea es producir un JSON válido con EXACTAMENTE esta estructura:
 
 {{
-  "ellitoral": "Bullets con los temas y sucesos que cubrieron los artículos de El Litoral, si más de un artículo se refiere al mismo tema, únelos",
-  "aire": "Bullets con los temas y sucesos que cubrieron los artículos de Aire de Santa Fe, si más de un artículo se refiere al mismo tema, únelos",
-  "lacapital": "Bullets con los temas y sucesos que cubrieron los artículos de La Capital, si más de un artículo se refiere al mismo tema, únelos",
-  "integrativo": "entre 1 y 3 párrafos integrando la cobertura de los tres medios, identificando temas comunes, perspectivas distintas o agendas exclusivas de cada uno"
+  "ellitoral": [
+    "Tema o suceso 1",
+    "Tema o suceso 2"
+  ],
+  "aire": [
+    "Tema o suceso 1",
+    "Tema o suceso 2"
+  ],
+  "lacapital": [
+    "Tema o suceso 1",
+    "Tema o suceso 2"
+  ],
+  "integrativo": "Entre 1 y 3 párrafos integrando la cobertura de los tres medios."
 }}
 
-Para cada resumen: sé específico con nombres, lugares y hechos concretos. 
-Para el integrativo: identificá si cubren los mismos hechos con distinto énfasis, temas exclusivos de algún medio, o agenda común.
+IMPORTANTE:
+
+- ellitoral, aire y lacapital DEBEN ser arrays JSON de strings.
+- Cada elemento del array debe representar un tema o suceso.
+- Si varios artículos se refieren al mismo hecho, unifícalos en un único elemento.
+- Sé específico con nombres, lugares y hechos concretos.
+- integrativo DEBE ser un string, no un array.
+- Para el integrativo, identificá temas comunes entre los medios, diferencias de énfasis, temas exclusivos o agendas particulares de cada medio.
+- No inventes información que no esté presente en los artículos proporcionados.
+- Si no hay información suficiente para un medio, devolvé un array vacío [].
+
+Respondé SOLO con JSON válido.
+No agregues texto antes ni después.
+No uses bloques de código Markdown.
 
 Artículos:
 
 {medias_text}
+"""
 
-Respondé SOLO con el JSON, sin texto adicional, sin backticks."""
-
+    # --------------------------------------------------
+    # Generate summaries
+    # --------------------------------------------------
     try:
+
         response = client_gemini.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt
         )
+
         raw = response.text.strip()
 
-        import json
+        # Parse JSON
         result = json.loads(raw)
 
+        # --------------------------------------------------
+        # Debug response types
+        # --------------------------------------------------
+        print("\n[DEBUG] Response types:")
+
+        for key, value in result.items():
+            print(
+                f"[DEBUG] {key}: "
+                f"{type(value).__name__}"
+            )
+
+        # --------------------------------------------------
+        # Save summaries
+        # --------------------------------------------------
         for key in list(MEDIAS.keys()) + ["integrativo"]:
+
+            # Skip if already generated today
             if key in existing:
-                print(f"[SKIP] {key} already exists for today")
+                print(
+                    f"[SKIP] {key} already exists for today"
+                )
                 continue
-            if key in result:
-                summaries_col.insert_one({
+
+            # Check key exists
+            if key not in result:
+                print(
+                    f"[WARN] Key '{key}' missing "
+                    f"from LLM response"
+                )
+                continue
+
+            summary = result[key]
+
+            # ----------------------------------------------
+            # Media summaries: expected list -> bullets
+            # ----------------------------------------------
+            if key in MEDIAS:
+
+                if isinstance(summary, list):
+
+                    summary = "\n".join(
+                        (
+                            f"- {str(item).strip()}"
+                        )
+                        for item in summary
+                        if str(item).strip()
+                    )
+
+                else:
+
+                    print(
+                        f"[WARN] Expected list for '{key}', "
+                        f"got {type(summary).__name__}. "
+                        f"Converting to string."
+                    )
+
+                    summary = str(summary).strip()
+
+            # ----------------------------------------------
+            # Integrative summary: expected string
+            # ----------------------------------------------
+            else:
+
+                if isinstance(summary, list):
+
+                    print(
+                        "[WARN] Expected string for "
+                        "'integrativo', got list. "
+                        "Joining elements."
+                    )
+
+                    summary = "\n\n".join(
+                        str(item).strip()
+                        for item in summary
+                        if str(item).strip()
+                    )
+
+                else:
+
+                    summary = str(summary).strip()
+
+            # ----------------------------------------------
+            # Save to MongoDB
+            # ----------------------------------------------
+            summaries_col.insert_one(
+                {
                     "date": today,
                     "media": key,
-                    "summary": result[key].strip()
-                })
-                print(f"[OK] Summary saved for {key}")
-            else:
-                print(f"[WARN] Key '{key}' missing from LLM response")
+                    "summary": summary
+                }
+            )
+
+            print(
+                f"[OK] Summary saved for {key}"
+            )
 
     except json.JSONDecodeError as e:
-        print(f"[ERROR] Failed to parse JSON response: {e}")
-        print(f"[RAW] {raw[:500]}")
-    except Exception as e:
-        print(f"[ERROR] API call failed: {e}")
 
-    client_mongo.close()
+        print(
+            f"[ERROR] Failed to parse JSON response: {e}"
+        )
+
+        print(
+            f"[RAW] {raw[:1000]}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"[ERROR] API call failed: {e}"
+        )
+
+    finally:
+
+        client_mongo.close()
+
 
 if __name__ == "__main__":
     generate_summaries()
