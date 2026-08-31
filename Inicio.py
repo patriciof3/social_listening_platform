@@ -47,42 +47,13 @@ st.divider()
 
 # --- KPI CARDS ---
 avg_per_media, change_per_media = get_weekly_avg_per_media(df)
-st.markdown("### Promedio de artículos por semana en el último año")
-cols = st.columns(3)
-for col, media in zip(cols, medias):
-    avg = avg_per_media.get(media, 0)
-    color = colors[media]
-    col.markdown(
-        f"""
-        <div style="background-color:#1e1e1e; border-left: 5px solid {color};
-                    border-radius:8px; padding:20px 24px; text-align:center;">
-            <p style="color:#aaaaaa; font-size:14px; margin:0;">{labels[media]}</p>
-            <p style="color:{color}; font-size:52px; font-weight:bold; margin:8px 0;">{avg}</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-st.divider()
-
-# --- CHARTS ---
-fig_cumulative = plot_cumulative_articles_monthly(df)
-st.plotly_chart(fig_cumulative, width="stretch")
-
-st.divider()
-
-fig_trend = plot_weekly_trend(df)
-st.plotly_chart(fig_trend, width="stretch")
-
-st.divider()
-
 # --- DAILY SUMMARIES ---
 @st.cache_data(ttl=3600)
 def load_summaries():
     client_mongo = MongoClient(os.getenv("MONGODB_URI"))
     summaries_col = client_mongo["social_listening"]["daily_summaries"]
     result = {}
-    for media_key in ['ellitoral', 'aire', 'lacapital', 'integrativo']:
+    for media_key in ["ellitoral", "aire", "lacapital", "integrativo"]:
         doc = summaries_col.find_one({"media": media_key}, sort=[("date", -1)])
         result[media_key] = doc["summary"] if doc else "Resumen no disponible aún."
     client_mongo.close()
@@ -122,3 +93,18 @@ if integrativo:
         """,
         unsafe_allow_html=True
     )
+
+st.divider()
+
+# --- CHARTS ---
+fig_cumulative = plot_cumulative_articles_monthly(df)
+st.plotly_chart(fig_cumulative, width="stretch")
+
+st.divider()
+
+fig_trend = plot_weekly_trend(df)
+st.plotly_chart(fig_trend, width="stretch")
+
+st.divider()
+
+
