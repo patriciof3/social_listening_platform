@@ -131,7 +131,7 @@ Tu tarea es producir un JSON válido con EXACTAMENTE esta estructura:
     "Tema o suceso 1",
     "Tema o suceso 2"
   ],
-  "integrativo": "Entre 1 y 3 párrafos integrando la cobertura de los tres medios."
+    "integrativo": "Entre 1 y 3 párrafos integrando la cobertura de los tres medios. Debes usar un tono neutro, no evaluativo. Desde una perspectiva de análisis de discurso que ponga el foco en cómo se construye lo noticiable en relación al narcotráfico"
 }}
 
 IMPORTANTE:
