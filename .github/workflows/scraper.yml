@@ -1,22 +1,26 @@
+
 name: Scrape Content
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *" # Runs daily
+    - cron: "0 0 * * *" # Runs daily at 00:00 UTC
 
-  
+permissions:
+  contents: read
+
 jobs:
   scrape-content:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Set Up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
-          python-version: 3.10.16
+          python-version: '3.10'
 
       - name: Install Dependencies
         run: |
@@ -28,24 +32,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y locales
           sudo locale-gen es_ES.UTF-8
-          export LANG=es_ES.UTF-8
-          export LANGUAGE=es_ES:es
-          export LC_ALL=es_ES.UTF-8
+          echo "LANG=es_ES.UTF-8" >> "$GITHUB_ENV"
+          echo "LANGUAGE=es_ES:es" >> "$GITHUB_ENV"
+          echo "LC_ALL=es_ES.UTF-8" >> "$GITHUB_ENV"
 
       - name: Run Scraper
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python daily_scraper.py
+        run: python daily_scraper.py
 
       - name: Generate Daily Summaries
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          python generate_summaries.py
-# Reactivated on 2025-08-31
-# Reactivated on 2026-02-15
-# Reactivated on 2026-04-21
-# Reactivated on 2026-08-30
+        run: python generate_summaries.py
+
